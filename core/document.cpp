@@ -2893,6 +2893,7 @@ namespace
 {
 struct BookmarkNode {
     DocumentSynopsis::Element element;
+    QString title;
     QVector<BookmarkNode> children;
 };
 
@@ -2900,14 +2901,14 @@ QVector<BookmarkNode> bookmarkNodes(const QVector<DocumentSynopsis::Element> &el
 {
     QVector<BookmarkNode> nodes;
     for (const auto &element : elements) {
-        nodes.append({element, bookmarkNodes(element.children())});
+        nodes.append({element, element.title(), bookmarkNodes(element.children())});
     }
     return nodes;
 }
 
 DocumentSynopsis::Element bookmarkElement(const BookmarkNode &node)
 {
-    DocumentSynopsis::ElementBuilder builder(node.element.title());
+    DocumentSynopsis::ElementBuilder builder(node.title);
     builder.setId(node.element.id());
     builder.setOpen(node.element.isOpen());
     builder.setUrl(node.element.url());
@@ -3021,6 +3022,23 @@ bool Document::removeDocumentBookmark(const QString &id)
     }
     location->siblings->removeAt(location->row);
     d->m_undoStack->push(new EditDocumentBookmarksCommand(d, before, bookmarkSynopsis(nodes), i18n("Remove Bookmark")));
+    return true;
+}
+
+bool Document::renameDocumentBookmark(const QString &id, const QString &title)
+{
+    const QString trimmedTitle = title.trimmed();
+    if (!canAddDocumentBookmarks() || !documentSynopsis() || id.isEmpty() || trimmedTitle.isEmpty()) {
+        return false;
+    }
+    const DocumentSynopsis before = *documentSynopsis();
+    auto nodes = bookmarkNodes(before.children());
+    const auto location = findBookmark(nodes, id);
+    if (!location || (*location->siblings)[location->row].title == trimmedTitle) {
+        return false;
+    }
+    (*location->siblings)[location->row].title = trimmedTitle;
+    d->m_undoStack->push(new EditDocumentBookmarksCommand(d, before, bookmarkSynopsis(nodes), i18n("Rename Bookmark")));
     return true;
 }
 

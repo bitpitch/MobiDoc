@@ -270,6 +270,8 @@ public:
     bool addDocumentBookmark(int page, const QString &title);
     /** Removes a bookmark and its descendants as one undoable edit. */
     bool removeDocumentBookmark(const QString &id);
+    /** Renames a bookmark as one undoable edit. */
+    bool renameDocumentBookmark(const QString &id, const QString &title);
     /** Destination row is an insertion position before removing the source. */
     bool canMoveDocumentBookmark(const QString &id, const QString &parentId, int row) const;
     bool moveDocumentBookmark(const QString &id, const QString &parentId, int row);

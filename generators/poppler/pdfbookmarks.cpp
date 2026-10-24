@@ -148,6 +148,7 @@ void writePdfBookmarkTree(const char *input, const char *output, const char *pas
                         object.replaceKey(key, clone(old->second.getKey(key), 0));
                     }
                 }
+                object.replaceKey("/Title", Object::newUnicodeString(node.title));
             } else {
                 object.replaceKey("/Title", Object::newUnicodeString(node.title));
                 object.replaceKey("/Dest", Object::newArray({pages.at(node.page).getObjectHandle(), Object::newName("/Fit")}));

@@ -3214,9 +3214,13 @@ void Part::showMenu(const Okular::Page *page, const QPoint point, const QString 
     }
 
     QMenu popup;
+    const QAction *renameBookmark = nullptr;
     const QAction *removeBookmark = nullptr;
     const QString selectedBookmarkId = showTOCActions ? m_toc->currentBookmarkId() : QString();
     if (showTOCActions) {
+        auto *renameAction = popup.addAction(QIcon::fromTheme(QStringLiteral("edit-rename")), i18n("Rename Bookmark"));
+        renameAction->setEnabled(isReadWrite() && m_document->canAddDocumentBookmarks() && !selectedBookmarkId.isEmpty());
+        renameBookmark = renameAction;
         auto *removeAction = popup.addAction(QIcon::fromTheme(QStringLiteral("bookmark-remove")), i18n("Remove Bookmark"));
         removeAction->setEnabled(isReadWrite() && m_document->canAddDocumentBookmarks() && !selectedBookmarkId.isEmpty());
         removeAction->setToolTip(i18n("Remove this bookmark and its children"));
@@ -3275,7 +3279,13 @@ void Part::showMenu(const Okular::Page *page, const QPoint point, const QString 
     if (reallyShow) {
         const QAction *res = popup.exec(point);
         if (res) {
-            if (res == removeBookmark) {
+            if (res == renameBookmark) {
+                bool accepted = false;
+                const QString title = QInputDialog::getText(widget(), i18n("Rename Bookmark"), i18n("Enter the new name of the bookmark:"), QLineEdit::Normal, bookmarkTitle, &accepted);
+                if (accepted) {
+                    m_document->renameDocumentBookmark(selectedBookmarkId, title);
+                }
+            } else if (res == removeBookmark) {
                 m_document->removeDocumentBookmark(selectedBookmarkId);
             } else if (res == addBookmark) {
                 addDocumentBookmark(page->number(), bookmarkTitle);
