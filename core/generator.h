@@ -360,6 +360,12 @@ public:
      */
     virtual const DocumentSynopsis *generateDocumentSynopsis();
 
+    /** Whether this generator can save new bookmarks in the document. */
+    virtual bool supportsAddingDocumentBookmarks() const;
+
+    /** Replaces the editable outline with an immutable snapshot. */
+    virtual void setDocumentSynopsis(const DocumentSynopsis &synopsis);
+
     /**
      * Returns the 'list of embedded fonts' object of the specified \p page
      * of the document.

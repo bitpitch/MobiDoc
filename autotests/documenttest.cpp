@@ -8,6 +8,8 @@
 */
 
 #include <QMimeDatabase>
+#include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
 
@@ -31,7 +33,67 @@ private Q_SLOTS:
     void testDocdataMigration();
     void testEvaluateKeystrokeEventChange_data();
     void testEvaluateKeystrokeEventChange();
+    void testDocumentBookmarkPersistence();
 };
+
+void DocumentTest::testDocumentBookmarkPersistence()
+{
+    Okular::SettingsCore::instance(QStringLiteral("documenttest"));
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString source = directory.filePath(QStringLiteral("source.pdf"));
+    QVERIFY(QFile::copy(QStringLiteral(KDESRCDIR "data/file1.pdf"), source));
+    const auto mime = QMimeDatabase().mimeTypeForName(QStringLiteral("application/pdf"));
+    Okular::Document document(nullptr);
+    QCOMPARE(document.openDocument(source, QUrl::fromLocalFile(source), mime), Okular::Document::OpenSuccess);
+    QVERIFY(document.canAddDocumentBookmarks());
+    const int originalCount = document.documentSynopsis() ? document.documentSynopsis()->children().size() : 0;
+    QSignalSpy synopsisChanges(&document, &Okular::Document::documentSynopsisChanged);
+    QVERIFY(!document.addDocumentBookmark(-1, QStringLiteral("Invalid")));
+    QVERIFY(!document.addDocumentBookmark(0, QStringLiteral("  ")));
+    QVERIFY(document.isHistoryClean());
+
+    const QString firstTitle = QString::fromUtf8("Caffè 日本語");
+    QVERIFY(document.addDocumentBookmark(0, firstTitle));
+    QVERIFY(!document.isHistoryClean());
+    QCOMPARE(document.documentSynopsis()->children().size(), originalCount + 1);
+    QVERIFY(document.addDocumentBookmark(0, QStringLiteral("Second")));
+    QCOMPARE(document.documentSynopsis()->children().size(), originalCount + 2);
+    document.undo();
+    QCOMPARE(document.documentSynopsis()->children().size(), originalCount + 1);
+    document.redo();
+    QCOMPARE(document.documentSynopsis()->children().size(), originalCount + 2);
+    QCOMPARE(synopsisChanges.count(), 4);
+
+    QString error;
+    const QString saved = directory.filePath(QStringLiteral("saved.pdf"));
+    QVERIFY2(document.saveChanges(saved, &error), qPrintable(error));
+    document.setHistoryClean(true);
+    QVERIFY(document.swapBackingFile(saved, QUrl::fromLocalFile(saved)));
+    QCOMPARE(document.documentSynopsis()->children().size(), originalCount + 2);
+
+    // Undo must still remove the embedded entry after the save replaced the backing file.
+    document.undo();
+    const QString undone = directory.filePath(QStringLiteral("undone.pdf"));
+    QVERIFY2(document.saveChanges(undone, &error), qPrintable(error));
+    Okular::Document reopened(nullptr);
+    QCOMPARE(reopened.openDocument(undone, QUrl::fromLocalFile(undone), mime), Okular::Document::OpenSuccess);
+    QCOMPARE(reopened.documentSynopsis()->children().size(), originalCount + 1);
+    QCOMPARE(reopened.documentSynopsis()->children().constLast().title(), firstTitle);
+    reopened.closeDocument();
+
+    QVERIFY(document.swapBackingFile(undone, QUrl::fromLocalFile(undone)));
+    document.redo();
+    const QString redone = directory.filePath(QStringLiteral("redone.pdf"));
+    QVERIFY2(document.saveChanges(redone, &error), qPrintable(error));
+    QVERIFY(document.swapBackingFile(redone, QUrl::fromLocalFile(redone)));
+    const QString savedAgain = directory.filePath(QStringLiteral("saved-again.pdf"));
+    QVERIFY2(document.saveChanges(savedAgain, &error), qPrintable(error));
+    QCOMPARE(reopened.openDocument(savedAgain, QUrl::fromLocalFile(savedAgain), mime), Okular::Document::OpenSuccess);
+    QCOMPARE(reopened.documentSynopsis()->children().size(), originalCount + 2);
+    QCOMPARE(reopened.documentSynopsis()->children().at(originalCount).title(), firstTitle);
+    QCOMPARE(reopened.documentSynopsis()->children().constLast().title(), QStringLiteral("Second"));
+}
 
 // Test that we don't crash if the document is closed while a RotationJob
 // is enqueued/running

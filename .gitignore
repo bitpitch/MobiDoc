@@ -17,3 +17,30 @@ CMakeLists.txt.user*
 .flatpak-builder
 build-dir
 .DS_Store
+
+# Local macOS builds, downloaded dependencies and packaged applications
+/.build-macos/
+/dist/
+
+# Other local CMake builds and installation prefixes (including Windows)
+/.build*/
+/_build*/
+/out/
+/install/
+/CMakeCache.txt
+/CMakeFiles/
+/cmake_install.cmake
+/CTestTestfile.cmake
+/Testing/
+/_deps/
+/*.log
+
+# Visual Studio local workspace data
+.vs/
+CMakeSettings.json.user
+CMakeUserPresets.json
+
+# Windows Explorer metadata
+Thumbs.db
+ehthumbs.db
+Desktop.ini

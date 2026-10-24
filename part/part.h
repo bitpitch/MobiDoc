@@ -314,6 +314,7 @@ private:
     void updateAboutBackendAction();
     void unsetDummyMode();
     void slotRenameBookmark(const DocumentViewport &viewport);
+    void addDocumentBookmark(int page, const QString &suggestedTitle = QString());
     void slotRemoveBookmark(const DocumentViewport &viewport);
     void resetStartArguments();
     void checkNativeSaveDataLoss(bool *out_wontSaveForms, bool *out_wontSaveAnnotations) const;

@@ -9,6 +9,7 @@
 
 #include <QAbstractItemModel>
 #include <QList>
+#include <QUuid>
 
 namespace Okular
 {
@@ -28,7 +29,7 @@ class TOCModel : public QAbstractItemModel
     Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
-    enum Roles { PageRole = 0x000f0001, PageLabelRole, HighlightRole, HighlightedParentRole };
+    enum Roles { PageRole = 0x000f0001, PageLabelRole, HighlightRole, HighlightedParentRole, BookmarkIdRole };
 
     explicit TOCModel(Okular::Document *document, QObject *parent = nullptr);
     ~TOCModel() override;
@@ -42,6 +43,17 @@ public:
     QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
     QModelIndex parent(const QModelIndex &index) const override;
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
+
+    Qt::ItemFlags flags(const QModelIndex &index) const override;
+    QStringList mimeTypes() const override;
+    QMimeData *mimeData(const QModelIndexList &indexes) const override;
+    bool canDropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) const override;
+    bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) override;
+    Qt::DropActions supportedDropActions() const override
+    {
+        return Qt::MoveAction;
+    }
+    QModelIndex indexForBookmarkId(const QString &id, const QModelIndex &parent = QModelIndex()) const;
 
     void fill(const Okular::DocumentSynopsis *toc);
     void clear();
@@ -66,6 +78,8 @@ Q_SIGNALS:
     void countChanged();
 
 private:
+    QUuid m_dragToken = QUuid::createUuid();
+    QString draggedBookmark(const QMimeData *data) const;
     // storage
     friend class TOCModelPrivate;
     TOCModelPrivate *const d;

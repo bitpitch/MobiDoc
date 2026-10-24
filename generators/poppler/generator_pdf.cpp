@@ -28,6 +28,7 @@
 #include <QMutex>
 #include <QPainter>
 #include <QPrinter>
+#include <QSaveFile>
 #include <QStack>
 #include <QTemporaryFile>
 #include <QTextStream>
@@ -66,6 +67,8 @@
 #include "popplerembeddedfile.h"
 #include "popplerversion.h"
 
+#include <algorithm>
+#include <exception>
 #include <functional>
 
 Q_DECLARE_METATYPE(Poppler::Annotation *)
@@ -74,7 +77,7 @@ Q_DECLARE_METATYPE(Poppler::FontInfo)
 static const int defaultPageWidth = 595;
 static const int defaultPageHeight = 842;
 
-static Okular::DocumentSynopsis::ElementBuilder addOutlineItem(const Poppler::OutlineItem &outlineItem);
+static Okular::DocumentSynopsis::ElementBuilder addOutlineItem(const Poppler::OutlineItem &outlineItem, const QString &id);
 
 class PDFOptionsPage : public QWidget, public Okular::PrintOptionsWidgetInterface
 {
@@ -752,12 +755,15 @@ Okular::Document::OpenResult PDFGenerator::init(QList<Okular::Page *> &pagesVect
         return Okular::Document::OpenError;
     }
 
+    documentPassword = password;
+    documentPasswordBytes = password.toLatin1();
     if (pdfdoc->isLocked()) {
-        pdfdoc->unlock(password.toLatin1(), password.toLatin1());
+        pdfdoc->unlock(documentPasswordBytes, documentPasswordBytes);
         documentHasPassword = !password.isEmpty();
 
         if (pdfdoc->isLocked()) {
-            pdfdoc->unlock(password.toUtf8(), password.toUtf8());
+            documentPasswordBytes = password.toUtf8();
+            pdfdoc->unlock(documentPasswordBytes, documentPasswordBytes);
 
             if (pdfdoc->isLocked()) {
                 pdfdoc.reset();
@@ -835,10 +841,24 @@ PDFGenerator::SwapBackingFileResult PDFGenerator::swapBackingFile(QString const 
 {
     const QBitArray oldRectsGenerated = rectsGenerated;
 
+    // Undo commands survive a save. Retain stable identities and the original
+    // metadata so deleting, saving and undoing can restore an entire branch.
+    auto savedSynopsis = std::move(docSyn);
+    const bool savedEdited = bookmarkTreeEdited;
+    auto savedSource = std::move(bookmarkSourceFile);
+    auto savedSourcePassword = bookmarkSourcePassword;
+    const QString savedPassword = documentPassword;
+
     doCloseDocument();
-    auto openResult = loadDocumentWithPassword(newFileName, newPagesVector, QString());
+    auto openResult = loadDocumentWithPassword(newFileName, newPagesVector, savedPassword);
     if (openResult != Okular::Document::OpenSuccess) {
         return SwapBackingFileError;
+    }
+    if (savedEdited) {
+        docSyn = std::move(savedSynopsis);
+        bookmarkTreeEdited = true;
+        bookmarkSourceFile = std::move(savedSource);
+        bookmarkSourcePassword = savedSourcePassword;
     }
 
     // Recreate links if needed since they are done on image() and image() is not called when swapping the file
@@ -869,6 +889,11 @@ bool PDFGenerator::doCloseDocument()
     pdfdoc = nullptr;
     userMutex()->unlock();
     docSyn.reset();
+    bookmarkTreeEdited = false;
+    bookmarkSourceFile.reset();
+    bookmarkSourcePassword.clear();
+    documentPassword.clear();
+    documentPasswordBytes.clear();
     docEmbeddedFilesDirty = true;
     qDeleteAll(docEmbeddedFiles);
     docEmbeddedFiles.clear();
@@ -1055,12 +1080,33 @@ const Okular::DocumentSynopsis *PDFGenerator::generateDocumentSynopsis()
 
     docSyn = Okular::DocumentSynopsis();
 
+    int row = 0;
     for (const Poppler::OutlineItem &outlineItem : outline) {
-        auto item = addOutlineItem(outlineItem);
+        auto item = addOutlineItem(outlineItem, QStringLiteral("pdf:") + QString::number(row++));
         docSyn->addChild(Okular::DocumentSynopsis::Element {item});
     }
 
     return &docSyn.value();
+}
+
+bool PDFGenerator::supportsAddingDocumentBookmarks() const
+{
+    return pdfdoc != nullptr;
+}
+
+void PDFGenerator::setDocumentSynopsis(const Okular::DocumentSynopsis &synopsis)
+{
+    docSyn = synopsis;
+    bookmarkTreeEdited = true;
+}
+
+static std::vector<PdfBookmarkNode> bookmarkTree(const QVector<Okular::DocumentSynopsis::Element> &elements)
+{
+    std::vector<PdfBookmarkNode> nodes;
+    for (const auto &element : elements) {
+        nodes.push_back({element.id().toStdString(), element.title().toUtf8().toStdString(), element.viewPort() ? element.viewPort()->pageNumber : -1, element.isOpen(), bookmarkTree(element.children())});
+    }
+    return nodes;
 }
 
 static Okular::FontInfo::FontType convertPopplerFontInfoTypeToOkularFontInfoType(Poppler::FontInfo::Type type)
@@ -1912,9 +1958,10 @@ Okular::TextPage *PDFGenerator::abstractTextPage(const std::vector<std::unique_p
     return ktp;
 }
 
-static Okular::DocumentSynopsis::ElementBuilder addOutlineItem(const Poppler::OutlineItem &outlineItem)
+static Okular::DocumentSynopsis::ElementBuilder addOutlineItem(const Poppler::OutlineItem &outlineItem, const QString &id)
 {
     Okular::DocumentSynopsis::ElementBuilder element(outlineItem.name());
+    element.setId(id);
 
     element.setExternalFileName(outlineItem.externalFileName());
     const QSharedPointer<const Poppler::LinkDestination> outlineDestination = outlineItem.destination();
@@ -1932,8 +1979,9 @@ static Okular::DocumentSynopsis::ElementBuilder addOutlineItem(const Poppler::Ou
     element.setUrl(outlineItem.uri());
     if (outlineItem.hasChildren()) {
         const auto children = outlineItem.children();
+        int row = 0;
         for (const auto &child : children) {
-            element.addChild(Okular::DocumentSynopsis::Element {addOutlineItem(child)});
+            element.addChild(Okular::DocumentSynopsis::Element {addOutlineItem(child, id + QLatin1Char('.') + QString::number(row++))});
         }
     }
 
@@ -2130,10 +2178,22 @@ bool PDFGenerator::supportsOption(SaveOption option) const
 
 bool PDFGenerator::save(const QString &fileName, SaveOptions options, QString *errorText)
 {
-    Q_UNUSED(errorText);
+    const bool saveBookmarks = (options & SaveChanges) && bookmarkTreeEdited;
+    QTemporaryFile sourceFile(QDir::tempPath() + QStringLiteral("/okular-bookmarks-source-XXXXXX.pdf"));
+    QTemporaryFile rewrittenFile(QDir::tempPath() + QStringLiteral("/okular-bookmarks-output-XXXXXX.pdf"));
+    if (saveBookmarks) {
+        if (!sourceFile.open() || !rewrittenFile.open()) {
+            if (errorText) {
+                *errorText = i18n("Could not create temporary files for saving bookmarks.");
+            }
+            return false;
+        }
+        sourceFile.close();
+        rewrittenFile.close();
+    }
     std::unique_ptr<Poppler::PDFConverter> pdfConv = pdfdoc->pdfConverter();
 
-    pdfConv->setOutputFileName(fileName);
+    pdfConv->setOutputFileName(saveBookmarks ? sourceFile.fileName() : fileName);
     if (options & SaveChanges) {
         pdfConv->setPDFOptions(pdfConv->pdfOptions() | Poppler::PDFConverter::WithChanges);
     }
@@ -2166,7 +2226,68 @@ bool PDFGenerator::save(const QString &fileName, SaveOptions options, QString *e
             break;
         }
     }
-    return success;
+    if (!success || !saveBookmarks) {
+        return success;
+    }
+    pdfConv.reset();
+
+    try {
+        if (!bookmarkSourceFile) {
+            auto original = std::make_unique<QTemporaryFile>();
+            QFile input(sourceFile.fileName());
+            if (!original->open() || !input.open(QIODevice::ReadOnly)) {
+                throw std::runtime_error("Could not retain original bookmark metadata");
+            }
+            while (!input.atEnd()) {
+                auto chunk = input.read(1024 * 1024);
+                if (input.error() != QFileDevice::NoError || original->write(chunk) != chunk.size()) {
+                    throw std::runtime_error("Could not retain original bookmark metadata");
+                }
+            }
+            if (!original->flush()) {
+                throw std::runtime_error("Could not flush original bookmark metadata");
+            }
+            original->close();
+            bookmarkSourceFile = std::move(original);
+            bookmarkSourcePassword = documentPasswordBytes;
+        }
+        writePdfBookmarkTree(QFile::encodeName(sourceFile.fileName()).constData(),
+                             QFile::encodeName(rewrittenFile.fileName()).constData(),
+                             documentPasswordBytes.constData(),
+                             QFile::encodeName(bookmarkSourceFile->fileName()).constData(),
+                             bookmarkSourcePassword.constData(),
+                             bookmarkTree(docSyn->children()));
+    } catch (const std::exception &error) {
+        if (errorText) {
+            *errorText = i18n("Could not save PDF bookmarks: %1", QString::fromUtf8(error.what()));
+        }
+        return false;
+    }
+
+    QFile input(rewrittenFile.fileName());
+    QSaveFile output(fileName);
+    if (!input.open(QIODevice::ReadOnly) || !output.open(QIODevice::WriteOnly)) {
+        if (errorText) {
+            *errorText = i18n("Could not write the PDF with its bookmarks.");
+        }
+        return false;
+    }
+    while (!input.atEnd()) {
+        const QByteArray chunk = input.read(1024 * 1024);
+        if (input.error() != QFileDevice::NoError || output.write(chunk) != chunk.size()) {
+            if (errorText) {
+                *errorText = i18n("Could not finish writing the PDF with its bookmarks.");
+            }
+            return false;
+        }
+    }
+    if (!output.commit()) {
+        if (errorText) {
+            *errorText = output.errorString();
+        }
+        return false;
+    }
+    return true;
 }
 
 Okular::AnnotationProxy *PDFGenerator::annotationProxy() const

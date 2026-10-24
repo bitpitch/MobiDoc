@@ -41,6 +41,7 @@
 #include <QScreen>
 #include <QStack>
 #include <QStandardPaths>
+#include <QUuid>
 #include <QTemporaryFile>
 #include <QTextStream>
 #include <QTimer>
@@ -2881,6 +2882,169 @@ DocumentInfo Document::documentInfo(const QSet<DocumentInfo::Key> &keys) const
 const DocumentSynopsis *Document::documentSynopsis() const
 {
     return d->m_generator ? d->m_generator->generateDocumentSynopsis() : nullptr;
+}
+
+bool Document::canAddDocumentBookmarks() const
+{
+    return d->m_generator && d->m_generator->supportsAddingDocumentBookmarks() && canSaveChanges() && isAllowed(AllowModify) && d->m_annotationEditingEnabled && !d->m_docdataMigrationNeeded;
+}
+
+namespace
+{
+struct BookmarkNode {
+    DocumentSynopsis::Element element;
+    QVector<BookmarkNode> children;
+};
+
+QVector<BookmarkNode> bookmarkNodes(const QVector<DocumentSynopsis::Element> &elements)
+{
+    QVector<BookmarkNode> nodes;
+    for (const auto &element : elements) {
+        nodes.append({element, bookmarkNodes(element.children())});
+    }
+    return nodes;
+}
+
+DocumentSynopsis::Element bookmarkElement(const BookmarkNode &node)
+{
+    DocumentSynopsis::ElementBuilder builder(node.element.title());
+    builder.setId(node.element.id());
+    builder.setOpen(node.element.isOpen());
+    builder.setUrl(node.element.url());
+    builder.setExternalFileName(node.element.externalFileName());
+    if (const auto viewport = node.element.viewPort()) {
+        builder.setViewPort(viewport.value());
+    }
+    if (const auto name = node.element.viewPortName()) {
+        builder.setViewPortName(name.value());
+    }
+    for (const auto &child : node.children) {
+        builder.addChild(bookmarkElement(child));
+    }
+    return DocumentSynopsis::Element(builder);
+}
+
+DocumentSynopsis bookmarkSynopsis(const QVector<BookmarkNode> &nodes)
+{
+    DocumentSynopsis result;
+    for (const auto &node : nodes) {
+        result.addChild(bookmarkElement(node));
+    }
+    return result;
+}
+
+struct BookmarkLocation {
+    QVector<BookmarkNode> *siblings;
+    int row;
+    QString parentId;
+};
+
+std::optional<BookmarkLocation> findBookmark(QVector<BookmarkNode> &nodes, const QString &id, const QString &parentId = QString())
+{
+    for (int row = 0; row < nodes.size(); ++row) {
+        if (nodes[row].element.id() == id) {
+            return BookmarkLocation {&nodes, row, parentId};
+        }
+        if (const auto found = findBookmark(nodes[row].children, id, nodes[row].element.id())) {
+            return found;
+        }
+    }
+    return std::nullopt;
+}
+
+bool moveBookmark(QVector<BookmarkNode> &nodes, const QString &id, const QString &parentId, int row)
+{
+    const auto source = findBookmark(nodes, id);
+    if (!source || id.isEmpty() || parentId == id || findBookmark((*source->siblings)[source->row].children, parentId)) {
+        return false;
+    }
+    auto *destination = &nodes;
+    if (!parentId.isEmpty()) {
+        const auto parent = findBookmark(nodes, parentId);
+        if (!parent) {
+            return false;
+        }
+        destination = &(*parent->siblings)[parent->row].children;
+    }
+    if (row == -1) {
+        row = destination->size();
+    }
+    if (row < 0 || row > destination->size() || (source->parentId == parentId && (row == source->row || row == source->row + 1))) {
+        return false;
+    }
+    const bool sameParent = source->parentId == parentId;
+    const int sourceRow = source->row;
+    auto moved = source->siblings->takeAt(sourceRow);
+    // Removing the source may invalidate vector addresses. Resolve the target again.
+    destination = &nodes;
+    if (!parentId.isEmpty()) {
+        const auto parent = findBookmark(nodes, parentId);
+        destination = &(*parent->siblings)[parent->row].children;
+    }
+    if (sameParent && row > sourceRow) {
+        --row;
+    }
+    destination->insert(row, std::move(moved));
+    return true;
+}
+}
+
+bool Document::addDocumentBookmark(int page, const QString &title)
+{
+    if (!canAddDocumentBookmarks() || page < 0 || page >= d->m_pagesVector.size() || title.trimmed().isEmpty()) {
+        return false;
+    }
+    const DocumentSynopsis before = documentSynopsis() ? *documentSynopsis() : DocumentSynopsis();
+    DocumentSynopsis after;
+    for (const auto &element : before.children()) {
+        after.addChild(element);
+    }
+    DocumentSynopsis::ElementBuilder builder(title.trimmed());
+    builder.setId(QStringLiteral("new:") + QUuid::createUuid().toString(QUuid::WithoutBraces));
+    builder.setViewPort(DocumentViewport(page));
+    builder.setOpen(true);
+    after.addChild(DocumentSynopsis::Element(builder));
+    d->m_undoStack->push(new EditDocumentBookmarksCommand(d, before, after, i18n("Add Bookmark")));
+    return true;
+}
+
+bool Document::removeDocumentBookmark(const QString &id)
+{
+    if (!canAddDocumentBookmarks() || !documentSynopsis() || id.isEmpty()) {
+        return false;
+    }
+    const DocumentSynopsis before = *documentSynopsis();
+    auto nodes = bookmarkNodes(before.children());
+    const auto location = findBookmark(nodes, id);
+    if (!location) {
+        return false;
+    }
+    location->siblings->removeAt(location->row);
+    d->m_undoStack->push(new EditDocumentBookmarksCommand(d, before, bookmarkSynopsis(nodes), i18n("Remove Bookmark")));
+    return true;
+}
+
+bool Document::canMoveDocumentBookmark(const QString &id, const QString &parentId, int row) const
+{
+    if (!canAddDocumentBookmarks() || !documentSynopsis()) {
+        return false;
+    }
+    auto nodes = bookmarkNodes(documentSynopsis()->children());
+    return moveBookmark(nodes, id, parentId, row);
+}
+
+bool Document::moveDocumentBookmark(const QString &id, const QString &parentId, int row)
+{
+    if (!canAddDocumentBookmarks() || !documentSynopsis()) {
+        return false;
+    }
+    const DocumentSynopsis before = *documentSynopsis();
+    auto nodes = bookmarkNodes(before.children());
+    if (!moveBookmark(nodes, id, parentId, row)) {
+        return false;
+    }
+    d->m_undoStack->push(new EditDocumentBookmarksCommand(d, before, bookmarkSynopsis(nodes), i18n("Move Bookmark")));
+    return true;
 }
 
 void Document::startFontReading()
@@ -5989,6 +6153,7 @@ public:
     }
     QVector<DocumentSynopsis::Element> children;
     QString title;
+    QString id;
     std::optional<DocumentViewport> viewPort;
     std::optional<QString> viewPortName;
     QString url;
@@ -6012,6 +6177,12 @@ void DocumentSynopsis::ElementBuilder::setViewPort(const DocumentViewport &viewP
 {
     d->viewPort = viewPort;
 }
+
+void DocumentSynopsis::ElementBuilder::setId(const QString &id)
+{
+    d->id = id;
+}
+
 void DocumentSynopsis::ElementBuilder::setUrl(const QString &url)
 {
     d->url = url;
@@ -6047,6 +6218,11 @@ QString DocumentSynopsis::Element::url() const
 QString DocumentSynopsis::Element::title() const
 {
     return d->title;
+}
+
+QString DocumentSynopsis::Element::id() const
+{
+    return d->id;
 }
 
 std::optional<DocumentViewport> DocumentSynopsis::Element::viewPort() const

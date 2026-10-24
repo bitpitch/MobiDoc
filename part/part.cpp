@@ -24,6 +24,8 @@
 
 #include "config-okular.h"
 
+#include <optional>
+
 // qt/kde includes
 #include <QApplication>
 #include <QClipboard>
@@ -305,6 +307,31 @@ int Okular::Part::numberOfParts = 0;
 
 namespace Okular
 {
+static QList<QPair<QString, DocumentViewport>> documentBookmarkDestinations(Document *document)
+{
+    QList<QPair<QString, DocumentViewport>> result;
+    const auto *synopsis = document->documentSynopsis();
+    if (!synopsis) {
+        return result;
+    }
+    const auto append = [&](const auto &self, const auto &entries) -> void {
+        for (const auto &entry : entries) {
+            DocumentViewport viewport;
+            if (const auto direct = entry.viewPort()) {
+                viewport = direct.value();
+            } else if (const auto name = entry.viewPortName()) {
+                viewport = document->metaData(QStringLiteral("NamedViewport"), name.value()).template value<DocumentViewport>();
+            }
+            if (entry.url().isEmpty() && entry.externalFileName().isEmpty() && viewport.isValid()) {
+                result.append(qMakePair(entry.title(), viewport));
+            }
+            self(self, entry.children());
+        }
+    };
+    append(append, synopsis->children());
+    return result;
+}
+
 Part::Part(QObject *parent, const QVariantList &args)
     : KParts::ReadWritePart(parent)
     , m_tempfile(nullptr)
@@ -413,7 +440,8 @@ Part::Part(QObject *parent, const QVariantList &args)
 
     // [left toolbox: Bookmarks] | []
     m_bookmarkList = new BookmarkList(m_document, nullptr);
-    m_sidebar->addItem(m_bookmarkList, QIcon::fromTheme(QStringLiteral("bookmarks")), i18n("Bookmarks"));
+    // The local bookmark list is retained internally for compatibility, but the
+    // sidebar now exposes the document's embedded bookmarks instead.
 
     // [left toolbox optional item: Signature Panel] | []
     m_signaturePanel = new SignaturePanel(m_document, nullptr);
@@ -537,6 +565,10 @@ Part::Part(QObject *parent, const QVariantList &args)
     m_document->addObserver(m_signaturePanel);
 
     connect(m_document->bookmarkManager(), &BookmarkManager::saved, this, &Part::slotRebuildBookmarkMenu);
+    connect(m_document, &Document::documentSynopsisChanged, this, [this] {
+        rebuildBookmarkMenu();
+        updateBookmarksActions();
+    });
 
     setupViewerActions();
     connect(m_pageView.data(), &PageView::signingStarted, this, [this] {
@@ -688,6 +720,7 @@ void Part::setupViewerActions()
     m_renameBookmark->setText(i18n("Rename Bookmark"));
     m_renameBookmark->setIcon(QIcon::fromTheme(QStringLiteral("edit-rename")));
     m_renameBookmark->setWhatsThis(i18n("Rename the current bookmark"));
+    m_renameBookmark->setVisible(false);
     connect(m_renameBookmark, &QAction::triggered, this, &Part::slotRenameCurrentViewportBookmark);
 
     m_prevBookmark = ac->addAction(QStringLiteral("previous_bookmark"));
@@ -2270,24 +2303,10 @@ void Part::updateViewActions()
 
 void Part::updateBookmarksActions()
 {
-    bool opened = m_document->pages() > 0;
-    if (opened) {
-        m_addBookmark->setEnabled(true);
-        if (m_document->bookmarkManager()->isBookmarked(m_document->viewport())) {
-            m_addBookmark->setText(i18n("Remove Bookmark"));
-            m_addBookmark->setIcon(QIcon::fromTheme(QStringLiteral("bookmark-remove"), QIcon::fromTheme(QStringLiteral("edit-delete-bookmark"))));
-            m_renameBookmark->setEnabled(true);
-        } else {
-            m_addBookmark->setText(m_addBookmarkText);
-            m_addBookmark->setIcon(m_addBookmarkIcon);
-            m_renameBookmark->setEnabled(false);
-        }
-    } else {
-        m_addBookmark->setEnabled(false);
-        m_addBookmark->setText(m_addBookmarkText);
-        m_addBookmark->setIcon(m_addBookmarkIcon);
-        m_renameBookmark->setEnabled(false);
-    }
+    m_addBookmark->setEnabled(isReadWrite() && m_document->canAddDocumentBookmarks());
+    m_addBookmark->setText(m_addBookmarkText);
+    m_addBookmark->setIcon(m_addBookmarkIcon);
+    m_renameBookmark->setEnabled(false);
 }
 
 void Part::enableTOC(bool enable)
@@ -2297,7 +2316,7 @@ void Part::enableTOC(bool enable)
         return;
     }
 
-    m_sidebar->addItem(m_toc, QIcon::fromTheme(QApplication::isLeftToRight() ? QStringLiteral("format-justify-left") : QStringLiteral("format-justify-right")), i18n("Contents"));
+    m_sidebar->addItem(m_toc, QIcon::fromTheme(QStringLiteral("bookmarks")), i18n("Bookmarks"));
     m_tocEnabled = true;
 
     // If present, show the TOC when a document is opened
@@ -2456,11 +2475,18 @@ void Part::slotHistoryNext()
 
 void Part::slotAddBookmark()
 {
-    DocumentViewport vp = m_document->viewport();
-    if (m_document->bookmarkManager()->isBookmarked(vp)) {
-        m_document->bookmarkManager()->removeBookmark(vp);
-    } else {
-        m_document->bookmarkManager()->addBookmark(vp);
+    addDocumentBookmark(m_document->currentPage());
+}
+
+void Part::addDocumentBookmark(int page, const QString &suggestedTitle)
+{
+    if (!isReadWrite() || !m_document->canAddDocumentBookmarks() || page < 0 || page >= static_cast<int>(m_document->pages())) {
+        return;
+    }
+    bool accepted = false;
+    const QString title = QInputDialog::getText(widget(), i18n("Add Bookmark"), i18n("Enter the name of the bookmark:"), QLineEdit::Normal, suggestedTitle.isEmpty() ? i18n("Page %1", page + 1) : suggestedTitle, &accepted);
+    if (accepted && !title.trimmed().isEmpty()) {
+        m_document->addDocumentBookmark(page, title);
     }
 }
 
@@ -2527,21 +2553,31 @@ bool Part::aboutToShowContextMenu(QMenu * /*menu*/, QAction *action, QMenu *cont
 
 void Part::slotPreviousBookmark()
 {
-    const KBookmark bookmark = m_document->bookmarkManager()->previousBookmark(m_document->viewport());
-
-    if (!bookmark.isNull()) {
-        DocumentViewport vp(bookmark.url().fragment(QUrl::FullyDecoded));
-        m_document->setViewport(vp, nullptr, true);
+    const auto bookmarks = documentBookmarkDestinations(m_document);
+    const auto current = m_document->viewport();
+    std::optional<DocumentViewport> previous;
+    for (const auto &bookmark : bookmarks) {
+        if (bookmark.second < current && (!previous || previous.value() < bookmark.second)) {
+            previous = bookmark.second;
+        }
+    }
+    if (previous) {
+        m_document->setViewport(previous.value(), nullptr, true);
     }
 }
 
 void Part::slotNextBookmark()
 {
-    const KBookmark bookmark = m_document->bookmarkManager()->nextBookmark(m_document->viewport());
-
-    if (!bookmark.isNull()) {
-        DocumentViewport vp(bookmark.url().fragment(QUrl::FullyDecoded));
-        m_document->setViewport(vp, nullptr, true);
+    const auto bookmarks = documentBookmarkDestinations(m_document);
+    const auto current = m_document->viewport();
+    std::optional<DocumentViewport> next;
+    for (const auto &bookmark : bookmarks) {
+        if (current < bookmark.second && (!next || bookmark.second < next.value())) {
+            next = bookmark.second;
+        }
+    }
+    if (next) {
+        m_document->setViewport(next.value(), nullptr, true);
     }
 }
 
@@ -3163,12 +3199,12 @@ void Part::slotShowMenu(const Okular::Page *page, const QPoint point)
 
 void Part::showMenu(const Okular::Page *page, const QPoint point, const QString &bookmarkTitle, const Okular::DocumentViewport &vp, bool showTOCActions)
 {
+    Q_UNUSED(vp);
     if (m_embedMode == PrintPreviewMode) {
         return;
     }
 
     bool reallyShow = false;
-    const bool isCurrentPage = page && page->number() == m_document->viewport().pageNumber;
 
     if (!m_showMenuBarAction) {
         m_showMenuBarAction = findActionInKPartHierarchy<KToggleAction>(KStandardAction::name(KStandardAction::ShowMenubar));
@@ -3178,7 +3214,14 @@ void Part::showMenu(const Okular::Page *page, const QPoint point, const QString 
     }
 
     QMenu popup;
+    const QAction *removeBookmark = nullptr;
+    const QString selectedBookmarkId = showTOCActions ? m_toc->currentBookmarkId() : QString();
     if (showTOCActions) {
+        auto *removeAction = popup.addAction(QIcon::fromTheme(QStringLiteral("bookmark-remove")), i18n("Remove Bookmark"));
+        removeAction->setEnabled(isReadWrite() && m_document->canAddDocumentBookmarks() && !selectedBookmarkId.isEmpty());
+        removeAction->setToolTip(i18n("Remove this bookmark and its children"));
+        removeBookmark = removeAction;
+        popup.addSeparator();
         popup.addAction(i18n("Expand Whole Section"), m_toc.data(), &TOC::expandRecursively);
         popup.addAction(i18n("Collapse Whole Section"), m_toc.data(), &TOC::collapseRecursively);
         popup.addAction(i18n("Expand All"), m_toc.data(), &TOC::expandAll);
@@ -3187,7 +3230,6 @@ void Part::showMenu(const Okular::Page *page, const QPoint point, const QString 
     }
 
     const QAction *addBookmark = nullptr;
-    const QAction *removeBookmark = nullptr;
     const QAction *fitPageWidth = nullptr;
     const QAction *pasteAnnotation = nullptr;
     bool hasPastePoint = false;
@@ -3198,11 +3240,9 @@ void Part::showMenu(const Okular::Page *page, const QPoint point, const QString 
             const QIcon &syncIcon = QIcon::fromTheme(QStringLiteral("emblem-synchronizing"), QIcon::fromTheme(QStringLiteral("view-refresh")));
             popup.addAction(syncIcon, i18n("Sync Thumbnail with Page"), m_thumbnailList.data(), &ThumbnailList::syncThumbnail);
         }
-        if ((!isCurrentPage && m_document->bookmarkManager()->isBookmarked(page->number())) || (isCurrentPage && m_document->bookmarkManager()->isBookmarked(m_document->viewport()))) {
-            removeBookmark = popup.addAction(QIcon::fromTheme(QStringLiteral("bookmark-remove"), QIcon::fromTheme(QStringLiteral("edit-delete-bookmark"))), i18n("Remove Bookmark"));
-        } else {
-            addBookmark = popup.addAction(QIcon::fromTheme(QStringLiteral("bookmark-new")), i18n("Add Bookmark"));
-        }
+        QAction *addDocumentBookmarkAction = popup.addAction(QIcon::fromTheme(QStringLiteral("bookmark-new")), i18n("Add Bookmark"));
+        addDocumentBookmarkAction->setEnabled(isReadWrite() && m_document->canAddDocumentBookmarks());
+        addBookmark = addDocumentBookmarkAction;
         if (m_pageView->canFitPageWidth()) {
             fitPageWidth = popup.addAction(QIcon::fromTheme(QStringLiteral("zoom-fit-best")), i18n("Fit Width"));
         }
@@ -3235,20 +3275,10 @@ void Part::showMenu(const Okular::Page *page, const QPoint point, const QString 
     if (reallyShow) {
         const QAction *res = popup.exec(point);
         if (res) {
-            if (res == addBookmark) {
-                if (isCurrentPage && bookmarkTitle.isEmpty()) {
-                    m_document->bookmarkManager()->addBookmark(m_document->viewport());
-                } else if (!bookmarkTitle.isEmpty()) {
-                    m_document->bookmarkManager()->addBookmark(m_document->currentDocument(), vp, bookmarkTitle);
-                } else {
-                    m_document->bookmarkManager()->addBookmark(page->number());
-                }
-            } else if (res == removeBookmark) {
-                if (isCurrentPage) {
-                    m_document->bookmarkManager()->removeBookmark(m_document->viewport());
-                } else {
-                    m_document->bookmarkManager()->removeBookmark(page->number());
-                }
+            if (res == removeBookmark) {
+                m_document->removeDocumentBookmark(selectedBookmarkId);
+            } else if (res == addBookmark) {
+                addDocumentBookmark(page->number(), bookmarkTitle);
             } else if (res == fitPageWidth) {
                 m_pageView->fitPageWidth(page->number());
             } else if (res == pasteAnnotation) {
@@ -3825,9 +3855,10 @@ void Part::rebuildBookmarkMenu(bool unplugActions)
         qDeleteAll(m_bookmarkActions);
         m_bookmarkActions.clear();
     }
-    QUrl u = m_document->currentDocument();
-    if (u.isValid()) {
-        m_bookmarkActions = m_document->bookmarkManager()->actionsForUrl(u);
+    for (const auto &bookmark : documentBookmarkDestinations(m_document)) {
+        QAction *action = new QAction(bookmark.first, nullptr);
+        connect(action, &QAction::triggered, this, [this, viewport = bookmark.second] { m_document->setViewport(viewport, nullptr, true); });
+        m_bookmarkActions.append(action);
     }
     bool havebookmarks = true;
     if (m_bookmarkActions.isEmpty()) {
@@ -3838,18 +3869,6 @@ void Part::rebuildBookmarkMenu(bool unplugActions)
         m_bookmarkActions.append(a);
     }
     plugActionList(QStringLiteral("bookmarks_currentdocument"), m_bookmarkActions);
-
-    if (factory()) {
-        const QList<KXMLGUIClient *> clients(factory()->clients());
-        bool containerFound = false;
-        for (int i = 0; !containerFound && i < clients.size(); ++i) {
-            QMenu *container = dynamic_cast<QMenu *>(factory()->container(QStringLiteral("bookmarks"), clients[i]));
-            if (container && container->actions().contains(m_bookmarkActions.first())) {
-                container->installEventFilter(this);
-                containerFound = true;
-            }
-        }
-    }
 
     m_prevBookmark->setEnabled(havebookmarks);
     m_nextBookmark->setEnabled(havebookmarks);

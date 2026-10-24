@@ -363,6 +363,15 @@ const DocumentSynopsis *Generator::generateDocumentSynopsis()
     return nullptr;
 }
 
+bool Generator::supportsAddingDocumentBookmarks() const
+{
+    return false;
+}
+
+void Generator::setDocumentSynopsis(const DocumentSynopsis &)
+{
+}
+
 FontInfo::List Generator::fontsForPage(int)
 {
     return FontInfo::List();

@@ -14,6 +14,7 @@
 #include <QUndoCommand>
 
 #include "area.h"
+#include "document.h"
 
 namespace Okular
 {
@@ -29,6 +30,21 @@ class OkularUndoCommand : public QUndoCommand
 {
 public:
     virtual bool refreshInternalPageReferences(const QList<Okular::Page *> &newPagesVector) = 0;
+};
+
+class EditDocumentBookmarksCommand : public OkularUndoCommand
+{
+public:
+    EditDocumentBookmarksCommand(DocumentPrivate *document, const DocumentSynopsis &before, const DocumentSynopsis &after, const QString &description);
+    void undo() override;
+    void redo() override;
+    bool refreshInternalPageReferences(const QList<Page *> &pages) override;
+
+private:
+    void apply(const DocumentSynopsis &synopsis);
+    DocumentPrivate *m_document;
+    DocumentSynopsis m_before;
+    DocumentSynopsis m_after;
 };
 
 class AddAnnotationCommand : public OkularUndoCommand
