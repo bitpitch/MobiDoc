@@ -13,7 +13,7 @@ it and its children. Drag between entries to reorder them, onto an entry to
 make it a child, or into the blank area to return it to the top level. A parent
 moves together with its descendants. All edits participate in undo/redo,
 including across a save. Use **Save** to persist the structure in the PDF.
-Renaming existing entries is not implemented yet.
+Right-click an entry and choose **Rename Bookmark** to change its title.
 
 Original outline metadata is retained in a private temporary file for the
 current session so undo can restore deleted bookmarks even after saving.
