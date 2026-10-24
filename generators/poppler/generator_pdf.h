@@ -29,6 +29,9 @@
 
 #include <unordered_map>
 
+#include "pdfbookmarks.h"
+#include <QTemporaryFile>
+
 class PDFOptionsPage;
 class PopplerAnnotationProxy;
 
@@ -63,6 +66,8 @@ public:
     // [INHERITED] document information
     Okular::DocumentInfo generateDocumentInfo(const QSet<Okular::DocumentInfo::Key> &keys) const override;
     const Okular::DocumentSynopsis *generateDocumentSynopsis() override;
+    bool supportsAddingDocumentBookmarks() const override;
+    void setDocumentSynopsis(const Okular::DocumentSynopsis &synopsis) override;
     Okular::FontInfo::List fontsForPage(int page) override;
     const QList<Okular::EmbeddedFile *> *embeddedFiles() const override;
     PageLayout defaultPageLayout() const override;
@@ -152,6 +157,11 @@ private:
     bool xrefReconstructed;
     bool hasVisibleOverprint;
     std::optional<Okular::DocumentSynopsis> docSyn;
+    bool bookmarkTreeEdited = false;
+    std::unique_ptr<QTemporaryFile> bookmarkSourceFile;
+    QByteArray bookmarkSourcePassword;
+    QString documentPassword;
+    QByteArray documentPasswordBytes;
     mutable bool docEmbeddedFilesDirty;
     mutable QList<Okular::EmbeddedFile *> docEmbeddedFiles;
     int nextFontPage;

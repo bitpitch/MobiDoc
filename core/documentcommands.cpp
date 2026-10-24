@@ -13,6 +13,7 @@
 #include "debug_p.h"
 #include "document_p.h"
 #include "form.h"
+#include "generator.h"
 #include "page.h"
 #include "page_p.h"
 #include "utils_p.h"
@@ -21,6 +22,36 @@
 
 namespace Okular
 {
+EditDocumentBookmarksCommand::EditDocumentBookmarksCommand(DocumentPrivate *document, const DocumentSynopsis &before, const DocumentSynopsis &after, const QString &description)
+    : m_document(document)
+    , m_before(before)
+    , m_after(after)
+{
+    setText(description);
+}
+
+void EditDocumentBookmarksCommand::apply(const DocumentSynopsis &synopsis)
+{
+    m_document->m_generator->setDocumentSynopsis(synopsis);
+    Q_EMIT m_document->m_parent->documentSynopsisChanged();
+}
+
+void EditDocumentBookmarksCommand::undo()
+{
+    apply(m_before);
+}
+
+void EditDocumentBookmarksCommand::redo()
+{
+    apply(m_after);
+}
+
+bool EditDocumentBookmarksCommand::refreshInternalPageReferences(const QList<Page *> &)
+{
+    // Snapshots contain page numbers, not pointers into the generator's pages.
+    return true;
+}
+
 void moveViewportIfBoundingRectNotFullyVisible(Okular::NormalizedRect boundingRect, DocumentPrivate *docPriv, int pageNumber)
 {
     const Rotation pageRotation = docPriv->m_parent->page(pageNumber)->rotation();

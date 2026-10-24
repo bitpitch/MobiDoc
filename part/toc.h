@@ -39,6 +39,7 @@ public:
     void notifyCurrentPageChanged(int previous, int current) override;
 
     void reparseConfig();
+    QString currentBookmarkId() const;
 
     void prepareForReload();
     void rollbackReload();

@@ -8,6 +8,7 @@
 
 // qt/kde includes
 #include <QContextMenuEvent>
+#include <QDropEvent>
 #include <QHeaderView>
 #include <QLayout>
 #include <QTreeView>
@@ -24,6 +25,40 @@
 #include "pageitemdelegate.h"
 #include "settings.h"
 
+// Apply the move in the document once. QTreeView's default drop handler
+// otherwise also tries to delete source rows after our synchronous model reset.
+class BookmarkTreeView : public QTreeView
+{
+public:
+    using QTreeView::QTreeView;
+
+protected:
+    void dropEvent(QDropEvent *event) override
+    {
+        auto target = indexAt(event->position().toPoint());
+        QModelIndex parent;
+        int row = -1;
+        switch (dropIndicatorPosition()) {
+        case OnItem:
+            parent = target;
+            break;
+        case AboveItem:
+        case BelowItem:
+            parent = target.parent();
+            row = target.row() + (dropIndicatorPosition() == BelowItem ? 1 : 0);
+            break;
+        case OnViewport:
+            break;
+        }
+        if (event->source() == this && model()->dropMimeData(event->mimeData(), Qt::MoveAction, row, 0, parent)) {
+            event->setDropAction(Qt::MoveAction);
+            event->accept();
+        } else {
+            event->ignore();
+        }
+    }
+};
+
 TOC::TOC(QWidget *parent, Okular::Document *document)
     : QWidget(parent)
     , m_document(document)
@@ -33,7 +68,7 @@ TOC::TOC(QWidget *parent, Okular::Document *document)
 
     KTitleWidget *titleWidget = new KTitleWidget(this);
     titleWidget->setLevel(4);
-    titleWidget->setText(i18n("Contents"));
+    titleWidget->setText(i18n("Bookmarks"));
     mainlay->addWidget(titleWidget);
     mainlay->setAlignment(titleWidget, Qt::AlignHCenter);
     m_searchLine = new KTreeViewSearchLine(this);
@@ -43,7 +78,12 @@ TOC::TOC(QWidget *parent, Okular::Document *document)
     m_searchLine->setRegularExpression(Okular::Settings::self()->contentsSearchRegularExpression());
     connect(m_searchLine, &KTreeViewSearchLine::searchOptionsChanged, this, &TOC::saveSearchOptions);
 
-    m_treeView = new QTreeView(this);
+    m_treeView = new BookmarkTreeView(this);
+    m_treeView->setDragDropMode(QAbstractItemView::InternalMove);
+    m_treeView->setDefaultDropAction(Qt::MoveAction);
+    m_treeView->setDropIndicatorShown(true);
+    m_treeView->setAutoExpandDelay(600);
+    m_treeView->setSelectionMode(QAbstractItemView::SingleSelection);
     mainlay->addWidget(m_treeView);
     m_model = new TOCModel(document, m_treeView);
     m_treeView->setModel(m_model);
@@ -56,6 +96,26 @@ TOC::TOC(QWidget *parent, Okular::Document *document)
     connect(m_treeView, &QTreeView::clicked, this, &TOC::slotExecuted);
     connect(m_treeView, &QTreeView::activated, this, &TOC::slotExecuted);
     m_searchLine->setTreeView(m_treeView);
+    connect(m_document, &Okular::Document::documentSynopsisChanged, this, [this] {
+        QStringList expandedIds;
+        const auto selectedId = currentBookmarkId();
+        for (const auto &index : expandedNodes(QModelIndex())) {
+            expandedIds.append(m_model->data(index, TOCModel::BookmarkIdRole).toString());
+        }
+        notifySetup({}, Okular::DocumentObserver::DocumentChanged);
+        for (const auto &id : expandedIds) {
+            m_treeView->setExpanded(m_model->indexForBookmarkId(id), true);
+        }
+        const auto selected = m_model->indexForBookmarkId(selectedId);
+        if (selected.isValid()) {
+            m_treeView->setCurrentIndex(selected);
+            for (auto parent = selected.parent(); parent.isValid(); parent = parent.parent()) {
+                m_treeView->setExpanded(parent, true);
+            }
+            m_treeView->scrollTo(selected);
+        }
+        m_model->setCurrentViewport(m_document->viewport());
+    });
 }
 
 TOC::~TOC()
@@ -177,11 +237,12 @@ void TOC::saveSearchOptions()
 
 void TOC::contextMenuEvent(QContextMenuEvent *e)
 {
-    QModelIndex index = m_treeView->currentIndex();
+    QModelIndex index = e->reason() == QContextMenuEvent::Mouse ? m_treeView->indexAt(m_treeView->viewport()->mapFromGlobal(e->globalPos())) : m_treeView->currentIndex();
     if (!index.isValid()) {
         return;
     }
 
+    m_treeView->setCurrentIndex(index);
     Okular::DocumentViewport viewport = m_model->viewportForIndex(index);
 
     Q_EMIT rightClick(viewport, e->globalPos(), m_model->data(index).toString());
@@ -225,6 +286,11 @@ void TOC::expandAll()
 void TOC::collapseAll()
 {
     m_treeView->collapseAll();
+}
+
+QString TOC::currentBookmarkId() const
+{
+    return m_model->data(m_treeView->currentIndex(), TOCModel::BookmarkIdRole).toString();
 }
 
 #include "moc_toc.cpp"

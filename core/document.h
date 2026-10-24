@@ -263,6 +263,17 @@ public:
      */
     const DocumentSynopsis *documentSynopsis() const;
 
+    /** Whether bookmarks can be added and saved inside this document. */
+    bool canAddDocumentBookmarks() const;
+
+    /** Adds a top-level document bookmark as an undoable edit. Pages start at zero. */
+    bool addDocumentBookmark(int page, const QString &title);
+    /** Removes a bookmark and its descendants as one undoable edit. */
+    bool removeDocumentBookmark(const QString &id);
+    /** Destination row is an insertion position before removing the source. */
+    bool canMoveDocumentBookmark(const QString &id, const QString &parentId, int row) const;
+    bool moveDocumentBookmark(const QString &id, const QString &parentId, int row);
+
     /**
      * Starts the reading of the information about the fonts in the
      * document, if available.
@@ -1165,6 +1176,9 @@ public Q_SLOTS:
     void refreshPixmaps(int pageNumber);
 
 Q_SIGNALS:
+    /** Emitted after an edit changes the document's embedded bookmarks. */
+    void documentSynopsisChanged();
+
     /**
      * This signal is emitted whenever the document is about to close.
      * @since 1.5.3
@@ -1486,6 +1500,8 @@ public:
         /* The title or header
          */
         QString title() const;
+        /** Stable identifier for editing, or empty for read-only generators. */
+        QString id() const;
         QString externalFileName() const;
         QVector<Element> children() const;
 
@@ -1506,6 +1522,7 @@ public:
         void setOpen(bool open);
         void setExternalFileName(const QString &externalFileName);
         void setUrl(const QString &url);
+        void setId(const QString &id);
 
     private:
         std::shared_ptr<ElementPrivate> d;

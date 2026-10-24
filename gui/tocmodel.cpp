@@ -7,7 +7,10 @@
 #include "tocmodel.h"
 
 #include <QApplication>
+#include <QDataStream>
+#include <QIODevice>
 #include <QList>
+#include <QMimeData>
 #include <QTreeView>
 #include <qdom.h>
 
@@ -27,6 +30,7 @@ struct TOCItem {
     TOCItem &operator=(const TOCItem &) = delete;
 
     QString text;
+    QString id;
     Okular::DocumentViewport viewport;
     QString extFileName;
     QString url;
@@ -71,6 +75,7 @@ TOCItem::TOCItem(TOCItem *_parent, const Okular::DocumentSynopsis::Element &e)
     parent->children.append(this);
     model = parent->model;
     text = e.title();
+    id = e.id();
 
     // viewport loading
     if (auto vp = e.viewPort()) {
@@ -208,6 +213,8 @@ QVariant TOCModel::data(const QModelIndex &index, int role) const
 
     TOCItem *item = static_cast<TOCItem *>(index.internalPointer());
     switch (role) {
+    case BookmarkIdRole:
+        return item->id;
     case Qt::DisplayRole:
     case Qt::ToolTipRole:
         return item->text;
@@ -359,6 +366,7 @@ void TOCModel::fill(const Okular::DocumentSynopsis *toc)
 
 void TOCModel::clear()
 {
+    m_dragToken = QUuid::createUuid();
     if (!d->dirty) {
         return;
     }
@@ -484,4 +492,79 @@ bool TOCModel::checkequality(const TOCModel *model, const QModelIndex &parentA, 
     }
     return true;
 }
+
+Qt::ItemFlags TOCModel::flags(const QModelIndex &index) const
+{
+    auto result = QAbstractItemModel::flags(index);
+    if (d->document->canAddDocumentBookmarks()) {
+        result |= Qt::ItemIsDropEnabled;
+        if (index.isValid() && !data(index, BookmarkIdRole).toString().isEmpty()) {
+            result |= Qt::ItemIsDragEnabled;
+        }
+    }
+    return result;
+}
+
+QStringList TOCModel::mimeTypes() const
+{
+    return {QStringLiteral("application/x-okular-document-bookmark")};
+}
+
+QMimeData *TOCModel::mimeData(const QModelIndexList &indexes) const
+{
+    auto result = new QMimeData;
+    if (!indexes.isEmpty()) {
+        QByteArray bytes;
+        QDataStream stream(&bytes, QIODevice::WriteOnly);
+        stream << m_dragToken << data(indexes.first(), BookmarkIdRole).toString();
+        result->setData(mimeTypes().first(), bytes);
+    }
+    return result;
+}
+
+QString TOCModel::draggedBookmark(const QMimeData *data) const
+{
+    if (!data || !data->hasFormat(mimeTypes().first())) {
+        return {};
+    }
+    const auto bytes = data->data(mimeTypes().first());
+    QDataStream stream(bytes);
+    QUuid token;
+    QString id;
+    stream >> token >> id;
+    return stream.status() == QDataStream::Ok && token == m_dragToken ? id : QString();
+}
+
+bool TOCModel::canDropMimeData(const QMimeData *mime, Qt::DropAction action, int row, int column, const QModelIndex &parent) const
+{
+    const auto id = draggedBookmark(mime);
+    return action == Qt::MoveAction && column <= 0 && !id.isEmpty() && d->document->canMoveDocumentBookmark(id, data(parent, BookmarkIdRole).toString(), row);
+}
+
+bool TOCModel::dropMimeData(const QMimeData *mime, Qt::DropAction action, int row, int column, const QModelIndex &parent)
+{
+    if (!canDropMimeData(mime, action, row, column, parent)) {
+        return false;
+    }
+    return d->document->moveDocumentBookmark(draggedBookmark(mime), data(parent, BookmarkIdRole).toString(), row);
+}
+
+QModelIndex TOCModel::indexForBookmarkId(const QString &id, const QModelIndex &parent) const
+{
+    if (id.isEmpty()) {
+        return {};
+    }
+    for (int row = 0; row < rowCount(parent); ++row) {
+        const auto child = index(row, 0, parent);
+        if (data(child, BookmarkIdRole).toString() == id) {
+            return child;
+        }
+        const auto found = indexForBookmarkId(id, child);
+        if (found.isValid()) {
+            return found;
+        }
+    }
+    return {};
+}
+
 #include "moc_tocmodel.cpp"
