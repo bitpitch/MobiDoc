@@ -10,7 +10,9 @@ All bookmark modifications can be saved directly into the PDF file.
 
 ### Downloads
 
-Installation packages and releases will be available in the MobiDoc repository.
+Download the latest MobiDoc installers and releases from GitHub:
+
+**[Download MobiDoc](https://github.com/mobicod/MobiDoc/releases)**
 
 ### User manual
 
