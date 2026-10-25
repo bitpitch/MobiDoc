@@ -1,85 +1,91 @@
-# Okular – Universal Document Viewer
+# MobiDoc – PDF Document Viewer
 
-Okular can view and annotate documents of various formats, including PDF, Postscript, Comic Book, and various image formats.
-It supports native PDF annotations.
+MobiDoc is an open-source document viewer based on KDE Okular.
+
+It supports PDF, PostScript, Comic Book, and various image formats, including native PDF annotations.
+
+MobiDoc extends the original document viewer with advanced PDF bookmark management, allowing users to create, edit, rename, delete, and organize hierarchical bookmarks directly within PDF documents.
+
+All bookmark modifications can be saved directly into the PDF file.
 
 ### Downloads
 
-For download and installation instructions, see https://okular.kde.org/download.php
+Download the latest MobiDoc installers and releases from GitHub:
+
+**[Download MobiDoc](https://github.com/bitpitch/MobiDoc/releases)**
 
 ### User manual
 
-https://docs.kde.org/?application=okular&branch=stable5
+Documentation for MobiDoc is currently under development.
 
 ### Bugs
 
-https://bugs.kde.org/buglist.cgi?product=okular
-
-Please report bugs on Bugzilla (https://bugs.kde.org/enter_bug.cgi?product=okular), and not on our GitLab instance (https://invent.kde.org).
-
-### Mailing list
-
-https://mail.kde.org/mailman/listinfo/okular-devel
+Please report bugs and feature requests through the MobiDoc repository.
 
 ### Source code
 
-https://invent.kde.org/graphics/okular.git
+The MobiDoc repository contains the source code for:
 
-The Okular repository contains the source code for:
- * the `okular` desktop application (the “shell”),
- * the `okularpart` KParts plugin,
- * the `okularkirigami` mobile application,
- * several `okularGenerator_xyz` plugins, which provide backends for different document types.
+* the desktop document viewer,
+* document rendering backends,
+* PDF annotation support,
+* hierarchical PDF bookmark management,
+* bookmark editing with undo and redo support.
 
-### Apidox
+### PDF Bookmark Management
 
-https://api.kde.org/okular/html/index.html
+MobiDoc provides the following features:
+
+* Create, rename, and delete PDF bookmarks.
+* Reorder bookmarks using drag and drop.
+* Create and manage hierarchical bookmark structures.
+* Move bookmarks between hierarchy levels.
+* Undo and redo bookmark modifications.
+* Save bookmarks directly into PDF documents.
 
 ## Contributing
 
-Okular uses the merge request workflow.
-Merge requests are required to run pre-commit CI jobs; please don’t push to the master branch directly.
-See https://community.kde.org/Infrastructure/GitLab for an introduction.
+MobiDoc is an independent open-source project.
+
+Contributions, bug fixes, and improvements are welcome.
 
 ### Build instructions
 
-Okular can be built like many other applications developed by KDE.
-See https://community.kde.org/Get_Involved/development for an introduction.
+MobiDoc uses CMake and KDE Frameworks.
 
-If your build environment is set up correctly, you can also build Okular using CMake:
-
-```bash
-git clone https://invent.kde.org/graphics/okular.git
-cd okular
-mkdir build
-cd build
-cmake -DCMAKE_INSTALL_PREFIX=/path/to/your/install/dir ..
-make
-make install
-```
-
-Okular also builds tests in the build tree. To run them, you have to run `make install` first.
-
-If you install Okular in a different path than your system install directory it is possible that you need to run
+After obtaining the source code, build the application using:
 
 ```bash
-source prefix.sh
+cmake -S . -B build
+cmake --build build
 ```
 
-so that the correct Okular instance and libraries are picked up.
-Afterwards one can run `okular` inside the shell instance.
-The source command is also required to run the tests manually.
-
-As stated above, Okular has various build targets.
-Two of them are executables.
-You can choose which executable to build by passing a flag to CMake:
+To install:
 
 ```bash
-cmake -DCMAKE_INSTALL_PREFIX=/path/to/your/install/dir -DOKULAR_UI=desktop ..
+cmake --install build
 ```
-Available options are `desktop`, `mobile`, and `both`.
+
+Additional dependencies may be required depending on the operating system.
 
 ### clang-format
 
-The Okular project uses clang-format to enforce source code formatting.
-See [README.clang_format](https://invent.kde.org/graphics/okular/-/blob/master/README.clang-format) for more information.
+MobiDoc uses clang-format to maintain consistent source code formatting.
+
+## Credits
+
+MobiDoc is based on Okular, originally developed by the KDE community.
+
+The project incorporates modifications and additional functionality for PDF bookmark management.
+
+All original copyright notices and author attributions are preserved.
+
+MobiDoc is an independent project and is not officially affiliated with KDE.
+
+## License
+
+MobiDoc is distributed under the applicable open-source licenses of its components.
+
+Original copyright notices, license files, and attribution requirements are retained in the source code.
+
+For complete licensing information, refer to the license files included in the repository.
