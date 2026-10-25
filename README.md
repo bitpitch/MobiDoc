@@ -12,7 +12,7 @@ All bookmark modifications can be saved directly into the PDF file.
 
 Download the latest MobiDoc installers and releases from GitHub:
 
-**[Download MobiDoc](https://github.com/mobicod/MobiDoc/releases)**
+**[Download MobiDoc](https://github.com/bitpitch/MobiDoc/releases)**
 
 ### User manual
 
