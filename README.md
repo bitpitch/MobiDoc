@@ -1,56 +1,93 @@
-# Okular – Universal Document Viewer
+# MobiDoc – PDF Document Viewer
 
-Okular can view and annotate documents of various formats, including PDF, Postscript, Comic Book, and various image formats.
-It supports native PDF annotations.
+MobiDoc is an open-source document viewer based on KDE Okular.
+
+It supports multiple document formats, including PDF, PostScript, Comic Book, and various image formats, with native PDF annotations.
+
+MobiDoc extends Okular with enhanced PDF bookmark management, allowing users to create, edit, rename, delete, and organize hierarchical bookmarks directly within PDF documents.
+
+Bookmark changes can be saved in the PDF itself, making them portable across compatible PDF viewers.
 
 ### Downloads
 
-For download and installation instructions, see https://okular.kde.org/download.php
+MobiDoc is currently under development.
+
+Installation packages and release information will be published in the MobiDoc repository.
 
 ### User manual
+
+MobiDoc is based on Okular and shares many of its features.
+
+The original Okular documentation is available at:
 
 https://docs.kde.org/?application=okular&branch=stable5
 
 ### Bugs
 
+Please report issues related to MobiDoc through the MobiDoc repository.
+
+For issues affecting the original Okular project, refer to:
+
 https://bugs.kde.org/buglist.cgi?product=okular
-
-Please report bugs on Bugzilla (https://bugs.kde.org/enter_bug.cgi?product=okular), and not on our GitLab instance (https://invent.kde.org).
-
-### Mailing list
-
-https://mail.kde.org/mailman/listinfo/okular-devel
 
 ### Source code
 
+MobiDoc is a fork of KDE Okular.
+
+Original Okular repository:
+
 https://invent.kde.org/graphics/okular.git
 
-The Okular repository contains the source code for:
- * the `okular` desktop application (the “shell”),
- * the `okularpart` KParts plugin,
- * the `okularkirigami` mobile application,
- * several `okularGenerator_xyz` plugins, which provide backends for different document types.
+The source code includes:
+
+* the desktop document viewer application,
+* the `okularpart` KParts plugin,
+* the `okularkirigami` mobile application,
+* several `okularGenerator_xyz` plugins providing backends for different document types,
+* additional PDF bookmark management functionality.
+
+### PDF Bookmark Management
+
+MobiDoc provides extended bookmark editing capabilities:
+
+* Create new PDF bookmarks.
+* Rename existing bookmarks.
+* Delete bookmarks.
+* Reorder bookmarks using drag and drop.
+* Organize bookmarks into hierarchical structures.
+* Move bookmarks between hierarchy levels.
+* Undo and redo bookmark modifications.
+* Save bookmark changes directly into PDF files.
+
+These features are designed to improve document navigation and maintain bookmark portability between different PDF applications.
 
 ### Apidox
+
+The original Okular API documentation is available at:
 
 https://api.kde.org/okular/html/index.html
 
 ## Contributing
 
-Okular uses the merge request workflow.
-Merge requests are required to run pre-commit CI jobs; please don’t push to the master branch directly.
-See https://community.kde.org/Infrastructure/GitLab for an introduction.
+MobiDoc is an independent fork of Okular.
+
+Contributions, improvements, and bug fixes are welcome.
+
+The original Okular project uses a merge request workflow on KDE GitLab.
+
+For information about contributing to KDE projects, see:
+
+https://community.kde.org/Infrastructure/GitLab
 
 ### Build instructions
 
-Okular can be built like many other applications developed by KDE.
-See https://community.kde.org/Get_Involved/development for an introduction.
+MobiDoc uses the KDE Frameworks and CMake build system inherited from Okular.
 
-If your build environment is set up correctly, you can also build Okular using CMake:
+See https://community.kde.org/Get_Involved/development for an introduction to setting up a KDE development environment.
+
+After obtaining the MobiDoc source code and configuring the required dependencies, the project can be built using CMake:
 
 ```bash
-git clone https://invent.kde.org/graphics/okular.git
-cd okular
 mkdir build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX=/path/to/your/install/dir ..
@@ -58,28 +95,54 @@ make
 make install
 ```
 
-Okular also builds tests in the build tree. To run them, you have to run `make install` first.
+The project also builds tests in the build tree. Depending on the environment, running the tests may require installing the application first.
 
-If you install Okular in a different path than your system install directory it is possible that you need to run
+If installed in a custom directory, it may be necessary to run:
 
 ```bash
 source prefix.sh
 ```
 
-so that the correct Okular instance and libraries are picked up.
-Afterwards one can run `okular` inside the shell instance.
-The source command is also required to run the tests manually.
+This ensures that the correct application instance and libraries are used.
 
-As stated above, Okular has various build targets.
-Two of them are executables.
-You can choose which executable to build by passing a flag to CMake:
+MobiDoc retains the original Okular build configuration options where applicable.
+
+For example:
 
 ```bash
 cmake -DCMAKE_INSTALL_PREFIX=/path/to/your/install/dir -DOKULAR_UI=desktop ..
 ```
+
 Available options are `desktop`, `mobile`, and `both`.
 
 ### clang-format
 
-The Okular project uses clang-format to enforce source code formatting.
+MobiDoc inherits the clang-format configuration from Okular to maintain consistent source code formatting.
+
 See [README.clang_format](https://invent.kde.org/graphics/okular/-/blob/master/README.clang-format) for more information.
+
+## Credits
+
+MobiDoc is based on **Okular**, the universal document viewer developed by the KDE community.
+
+Original project:
+
+https://okular.kde.org
+
+Source code:
+
+https://invent.kde.org/graphics/okular
+
+MobiDoc builds upon the work of the original Okular developers and contributors.
+
+The original authors and copyright holders retain their respective rights.
+
+## License
+
+MobiDoc is distributed under the applicable open-source licenses inherited from the Okular project.
+
+All original copyright notices, license files, and attribution requirements are preserved.
+
+For detailed licensing information, refer to the license files included in the source code.
+
+MobiDoc is an independent project and is not an official KDE application.
