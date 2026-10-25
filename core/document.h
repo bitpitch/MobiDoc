@@ -545,6 +545,21 @@ public:
     void modifyPageAnnotationProperties(int page, Annotation *annotation);
 
     /**
+     * Changes the author of a collection of annotations on one page as one undoable edit.
+     * @param page the zero-based page number
+     * @param annotationUniqueNames the unique names of annotations to update
+     * @param author the new author value
+     * @return true if all annotations were changed
+     */
+    bool changePageAnnotationsAuthor(int page, const QStringList &annotationUniqueNames, const QString &author);
+
+    /** Returns whether all annotations in the author's group can be renamed. */
+    bool canRenameAnnotationAuthor(const QString &author) const;
+
+    /** Renames an author's annotation group across all pages as one undoable edit. */
+    bool renameAnnotationAuthor(const QString &author, const QString &newAuthor);
+
+    /**
      * Translates the position of the given @p annotation on the given @p page by a distance @p delta in normalized coordinates.
      *
      * Consecutive translations applied to the same @p annotation are merged together on the undo stack if the

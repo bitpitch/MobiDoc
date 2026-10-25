@@ -84,11 +84,6 @@
     <Separator/>
     <Action name="add_digital_signature"/>
     <Separator/>
-    <Action name="speak_document"/>
-    <Action name="speak_from_current_page"/>
-    <Action name="speak_current_page"/>
-    <Action name="speak_stop_all"/>
-    <Action name="speak_pause_resume"/>
   </Menu>
   <Menu name="settings"><text>&amp;Settings</text>
     <Action name="colorscheme_menu" group="show_merge"/>
@@ -98,7 +93,6 @@
     <Action name="options_configure" group="configure_merge"/>
   </Menu>
   <Menu name="help"><text>&amp;Help</text>
-    <Action name="help_about_backend" group="about_merge"/>
   </Menu>
 </MenuBar>
 <ToolBar name="mainToolBar"><text>Main Toolbar</text>

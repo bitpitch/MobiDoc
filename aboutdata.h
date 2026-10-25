@@ -15,10 +15,10 @@
 
 inline KAboutData okularAboutData()
 {
-    KAboutData about(QStringLiteral("okular"),
-                     i18n("Okular"),
+    KAboutData about(QStringLiteral("mobidoc"),
+                     i18n("MobiDoc"),
                      QStringLiteral(OKULAR_VERSION_STRING),
-                     i18n("Okular, a universal document viewer"),
+                     i18n("MobiDoc by Mobicod, based on Okular by KDE"),
                      KAboutLicense::GPL,
                      i18n("(C) 2002 Wilco Greven, Christophe Devriese\n"
                           "(C) 2004-2005 Enrico Ros\n"
@@ -26,8 +26,9 @@ inline KAboutData okularAboutData()
                           "(C) 2004-2017 Albert Astals Cid\n"
                           "(C) 2006-2009 Pino Toscano"),
                      QString(),
-                     QStringLiteral("https://okular.kde.org"));
+                     QStringLiteral("https://www.mobicod.com"));
 
+    about.addCredit(i18n("Mobicod"), i18n("MobiDoc distribution and customizations"), QString(), QStringLiteral("https://www.mobicod.com"));
     about.addAuthor(i18n("Pino Toscano"), i18n("Former maintainer"), QStringLiteral("pino@kde.org"));
     about.addAuthor(i18n("Tobias Koenig"), i18n("Lots of framework work, FictionBook backend and former ODT backend"), QStringLiteral("tokoe@kde.org"));
     about.addAuthor(i18n("Albert Astals Cid"), i18n("Developer"), QStringLiteral("aacid@kde.org"));

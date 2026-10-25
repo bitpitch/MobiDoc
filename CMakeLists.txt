@@ -14,6 +14,7 @@ set(KF_REQUIRED_VERSION "6.13.0") # Remember to update the KF_DEPRECATED_WARNING
 set(OKULAR_UI "" CACHE STRING "Which Okular user interface to build. Possible values: desktop, mobile, both. Default: desktop (except on Android, where it is 'mobile')")
 
 set(FORCE_NOT_REQUIRED_DEPENDENCIES "" CACHE STRING "List (semicolon-separated) of dependencies that will be downgraded from REQUIRED to RECOMMENDED")
+option(MOBIDOC_PDF_ONLY "Build MobiDoc with PDF support only and omit speech/multimedia integrations" OFF)
 
 find_package(ECM ${KF_REQUIRED_VERSION} CONFIG REQUIRED)
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
@@ -157,23 +158,31 @@ if (BUILD_DESKTOP)
 
     find_package(KF6 ${KF_REQUIRED_VERSION} REQUIRED COMPONENTS Parts ColorScheme IconThemes TextWidgets WidgetsAddons)
 
-    find_package(KF6Purpose)
-    set_okular_optional_package_properties(KF6Purpose PROPERTIES
-        DESCRIPTION "A framework for services and actions integration"
-        PURPOSE "Required for enabling the share menu.")
-    if (KF6Purpose_FOUND)
-        set(HAVE_PURPOSE 1)
-    else()
+    if (MOBIDOC_PDF_ONLY)
         set(HAVE_PURPOSE 0)
+    else()
+        find_package(KF6Purpose)
+        set_okular_optional_package_properties(KF6Purpose PROPERTIES
+            DESCRIPTION "A framework for services and actions integration"
+            PURPOSE "Required for enabling the share menu.")
+        if (KF6Purpose_FOUND)
+            set(HAVE_PURPOSE 1)
+        else()
+            set(HAVE_PURPOSE 0)
+        endif()
     endif()
 
-    find_package(Qt6TextToSpeech ${QT_REQUIRED_VERSION} CONFIG)
-    set_okular_optional_package_properties(Qt6TextToSpeech PROPERTIES
-        PURPOSE "Enables speech features.")
-    if (Qt6TextToSpeech_FOUND)
-        set(HAVE_SPEECH 1)
-    else()
+    if (MOBIDOC_PDF_ONLY)
         set(HAVE_SPEECH 0)
+    else()
+        find_package(Qt6TextToSpeech ${QT_REQUIRED_VERSION} CONFIG)
+        set_okular_optional_package_properties(Qt6TextToSpeech PROPERTIES
+            PURPOSE "Enables speech features.")
+        if (Qt6TextToSpeech_FOUND)
+            set(HAVE_SPEECH 1)
+        else()
+            set(HAVE_SPEECH 0)
+        endif()
     endif()
 endif()
 
@@ -206,14 +215,18 @@ else()
     set(HAVE_X11 FALSE)
 endif()
 
-find_package(Qt6MultimediaWidgets ${QT_REQUIRED_VERSION} CONFIG)
-set_okular_optional_package_properties(Qt6::MultimediaWidgets PROPERTIES
-    PURPOSE "Required for documents with audio or video elements.")
-
-if (TARGET Qt6::MultimediaWidgets)
-    set(HAVE_MULTIMEDIA 1)
-else()
+if (MOBIDOC_PDF_ONLY)
     set(HAVE_MULTIMEDIA 0)
+else()
+    find_package(Qt6MultimediaWidgets ${QT_REQUIRED_VERSION} CONFIG)
+    set_okular_optional_package_properties(Qt6::MultimediaWidgets PROPERTIES
+        PURPOSE "Required for documents with audio or video elements.")
+
+    if (TARGET Qt6::MultimediaWidgets)
+        set(HAVE_MULTIMEDIA 1)
+    else()
+        set(HAVE_MULTIMEDIA 0)
+    endif()
 endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/modules)
@@ -230,6 +243,7 @@ set_okular_optional_package_properties(Freetype PROPERTIES
         URL "https://www.freetype.org"
         PURPOSE "Provides freetype font support in the okular DVI generator.")
 
+if(NOT MOBIDOC_PDF_ONLY)
 find_package(TIFF)
 set_okular_optional_package_properties(TIFF PROPERTIES
         DESCRIPTION  "A library for reading and writing TIFF formatted files,"
@@ -272,6 +286,7 @@ set_okular_optional_package_properties(Discount PROPERTIES
         DESCRIPTION "A library that gives you formatting functions suitable for marking down entire documents or lines of text"
         URL "https://www.pell.portland.or.us/~orc/Code/discount/"
         PURPOSE "Support for Markdown documents in Okular.")
+endif() # Non-PDF document backends
 
 add_definitions(-DTRANSLATION_DOMAIN="okular")
 add_definitions(-DQT_DEPRECATED_WARNINGS_SINCE=0x060800)
@@ -446,7 +461,7 @@ PUBLIC  # these are included from the installed headers
     Qt6::PrintSupport
     Qt6::Widgets
 )
-if (TARGET Qt6::MultimediaWidgets)
+if (HAVE_MULTIMEDIA)
     target_link_libraries(okularcore PRIVATE Qt6::MultimediaWidgets)
 endif()
 
@@ -560,7 +575,7 @@ if(BUILD_DESKTOP)
   )
   ki18n_wrap_ui(okularpart_SRCS part/selectcertificatedialog.ui)
 
-if (Qt6TextToSpeech_FOUND)
+if (HAVE_SPEECH)
    set(okularpart_SRCS ${okularpart_SRCS}
       part/tts.cpp)
 endif()
@@ -587,7 +602,7 @@ target_link_libraries(okularpart okularcore
 if (TARGET Qt6::DBus)
     target_link_libraries(okularpart Qt6::DBus)
 endif()
-if (TARGET Qt6::MultimediaWidgets)
+if (HAVE_MULTIMEDIA)
     target_link_libraries(okularpart Qt6::MultimediaWidgets)
 endif()
 
@@ -595,14 +610,14 @@ if(KF6Wallet_FOUND)
     target_link_libraries(okularpart KF6::Wallet)
 endif()
 
-if (KF6Purpose_FOUND)
+if (HAVE_PURPOSE)
     target_link_libraries(okularpart KF6::PurposeWidgets)
 endif()
 
 set_target_properties(okularpart PROPERTIES PREFIX "")
 set_target_properties(okularpart PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/kf6/parts)
 
-if (Qt6TextToSpeech_FOUND)
+if (HAVE_SPEECH)
    target_link_libraries(okularpart Qt6::TextToSpeech)
 endif()
 

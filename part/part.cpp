@@ -3455,16 +3455,6 @@ void Part::slotUpdateHamburgerMenu()
     curatedViewMenu->addAction(ac->action(QStringLiteral("view_toggle_forms")));
     m_hamburgerMenuAction->hideActionsOf(curatedViewMenu);
 
-#if HAVE_SPEECH
-    auto speakMenu = menu->addMenu(QIcon::fromTheme(QStringLiteral("text-speak")), i18nc("@action:inmenu menu that contains actions to control text to speach", "Speak"));
-    speakMenu->addAction(ac->action(QStringLiteral("speak_document")));
-    speakMenu->addAction(ac->action(QStringLiteral("speak_from_current_page")));
-    speakMenu->addAction(ac->action(QStringLiteral("speak_current_page")));
-    speakMenu->addAction(ac->action(QStringLiteral("speak_stop_all")));
-    speakMenu->addAction(ac->action(QStringLiteral("speak_pause_resume")));
-    m_hamburgerMenuAction->hideActionsOf(speakMenu);
-#endif
-
     // Add the "Settings" menu from the menu bar.
     if (menuBar) {
         menu->addAction(menuBar->actions().at(menuBar->actions().count() - 3));

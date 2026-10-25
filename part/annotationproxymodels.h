@@ -7,8 +7,9 @@
 #ifndef ANNOTATIONPROXYMODEL_H
 #define ANNOTATIONPROXYMODEL_H
 
-#include <QPair>
+#include <QList>
 #include <QSortFilterProxyModel>
+#include <QUuid>
 
 /**
  * A proxy model, which filters out all pages except the
@@ -49,20 +50,14 @@ private:
 };
 
 /**
- * A proxy model which either groups the annotations by
- * pages or shows them all as list.
+ * Flattens the page-to-annotation model into a list of annotations.
  */
-class PageGroupProxyModel : public QAbstractProxyModel
+class AnnotationListProxyModel : public QAbstractProxyModel
 {
     Q_OBJECT
 
 public:
-    /**
-     * Creates a new page group proxy model.
-     *
-     * @param parent The parent object.
-     */
-    explicit PageGroupProxyModel(QObject *parent = nullptr);
+    explicit AnnotationListProxyModel(QObject *parent = nullptr);
 
     int columnCount(const QModelIndex &parentIndex) const override;
     int rowCount(const QModelIndex &parentIndex) const override;
@@ -75,13 +70,6 @@ public:
 
     void setSourceModel(QAbstractItemModel *model) override;
 
-public Q_SLOTS:
-    /**
-     * Sets whether the proxy model shall group
-     * the annotations by page.
-     */
-    void groupByPage(bool value);
-
 private Q_SLOTS:
     void rebuildIndexes();
     void doRebuildIndexes();
@@ -90,9 +78,7 @@ private Q_SLOTS:
     void sourceDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles);
 
 private:
-    bool mGroupByPage;
     QList<QModelIndex> mIndexes;
-    QList<QPair<QModelIndex, QList<QModelIndex>>> mTreeIndexes;
 };
 
 /**
@@ -122,18 +108,20 @@ public:
 
     void setSourceModel(QAbstractItemModel *model) override;
 
+    QStringList mimeTypes() const override;
+    QMimeData *mimeData(const QModelIndexList &indexes) const override;
+    bool canDropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) const override;
+    bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) override;
+    Qt::DropActions supportedDragActions() const override;
+    Qt::DropActions supportedDropActions() const override;
+
     QItemSelection mapSelectionToSource(const QItemSelection &selection) const override;
     QItemSelection mapSelectionFromSource(const QItemSelection &selection) const override;
     QVariant data(const QModelIndex &proxyIndex, int role = Qt::DisplayRole) const override;
     QMap<int, QVariant> itemData(const QModelIndex &index) const override;
     Qt::ItemFlags flags(const QModelIndex &index) const override;
 
-public Q_SLOTS:
-    /**
-     * Sets whether the proxy model shall group
-     * the annotations by author.
-     */
-    void groupByAuthor(bool value);
+    bool isAuthorGroup(const QModelIndex &index) const;
 
 private Q_SLOTS:
     void rebuildIndexes();
@@ -145,6 +133,7 @@ private Q_SLOTS:
 private:
     class Private;
     Private *const d;
+    QUuid m_dragToken = QUuid::createUuid();
 };
 
 #endif

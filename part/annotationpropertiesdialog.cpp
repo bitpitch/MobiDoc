@@ -61,7 +61,7 @@ AnnotsPropertiesDialog::AnnotsPropertiesDialog(QWidget *parent, Okular::Document
     QFormLayout *gridlayout = new QFormLayout(page);
     AuthorEdit = new KLineEdit(ann->author(), page);
     AuthorEdit->setEnabled(canEditAnnotations);
-    gridlayout->addRow(i18n("&Author:"), AuthorEdit);
+    gridlayout->addRow(i18n("&Folder:"), AuthorEdit);
 
     tmplabel = new QLabel(page);
     tmplabel->setText(QLocale().toString(ann->creationDate(), QLocale::LongFormat));

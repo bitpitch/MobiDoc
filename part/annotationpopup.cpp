@@ -117,6 +117,10 @@ void AnnotationPopup::exec(const QPoint point)
 
 void AnnotationPopup::addActionsToMenu(QMenu *menu)
 {
+    if (!menu || mAnnotations.isEmpty()) {
+        return;
+    }
+
     QAction *action = nullptr;
 
     if (mMenuMode == SingleAnnotationMode) {
