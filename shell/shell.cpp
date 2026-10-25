@@ -47,6 +47,7 @@
 #include <QJsonArray>
 #include <QMenuBar>
 #include <QMimeData>
+#include <QMenu>
 #include <QObject>
 #include <QPointer>
 #include <QScreen>
@@ -201,7 +202,7 @@ Shell::Shell(const QString &serializedOptions)
         // if we couldn't find our Part, we exit since the Shell by
         // itself can't do anything useful
         m_isValid = false;
-        KMessageBox::error(this, i18n("Unable to find the Okular component: %1", result.errorString));
+        KMessageBox::error(this, i18n("Unable to find the MobiDoc component: %1", result.errorString));
         return;
     } else {
         m_partFactory = result.plugin;
@@ -278,15 +279,15 @@ Shell::Shell(const QString &serializedOptions)
         m_unique = ShellUtils::unique(serializedOptions);
 #if HAVE_DBUS
         if (m_unique) {
-            m_unique = QDBusConnection::sessionBus().registerService(QStringLiteral("org.kde.okular"));
+            m_unique = QDBusConnection::sessionBus().registerService(QStringLiteral("com.mobicod.mobidoc"));
             if (!m_unique) {
-                KMessageBox::information(this, i18n("There is already a unique Okular instance running. This instance won't be the unique one."));
+                KMessageBox::information(this, i18n("There is already a unique MobiDoc instance running. This instance won't be the unique one."));
             }
         } else {
             // TODO When porting to KF7 Remove
             // PID is not unique in containers and "-" in the name violates D-Bus naming conventions.
             // Was left for compatibility with 3rd-party scripts.
-            QString serviceName = QStringLiteral("org.kde.okular-") + QString::number(qApp->applicationPid());
+            QString serviceName = QStringLiteral("com.mobicod.mobidoc-") + QString::number(qApp->applicationPid());
             QDBusConnection::sessionBus().registerService(serviceName);
 
             QDBusConnection::sessionBus().registerService(ShellUtils::currentProcessDbusName());
@@ -309,7 +310,7 @@ Shell::Shell(const QString &serializedOptions)
         showWelcomeScreen();
     } else {
         m_isValid = false;
-        KMessageBox::error(this, i18n("Unable to find the Okular component."));
+        KMessageBox::error(this, i18n("Unable to find the MobiDoc component."));
     }
 
     connect(guiFactory(), &KXMLGUIFactory::shortcutsSaved, this, &Shell::reloadAllXML);
@@ -381,7 +382,7 @@ Shell::~Shell()
     }
 #if HAVE_DBUS
     if (m_unique) {
-        QDBusConnection::sessionBus().unregisterService(QStringLiteral("org.kde.okular"));
+        QDBusConnection::sessionBus().unregisterService(QStringLiteral("com.mobicod.mobidoc"));
     }
 #endif // HAVE_DBUS
 
@@ -892,6 +893,16 @@ void Shell::setActiveTab(int tab)
     // to save and restore it
     const bool isSidebarVisible = m_sidebar->isVisible();
     createGUI(m_tabs[tab].part);
+    // The inherited handbook and donation entries are not part of the MobiDoc UI.
+    // Remove them after each GUI merge, since switching tabs rebuilds the menu.
+    const QStringList excludedHelpActions{QStringLiteral("help_contents"), QStringLiteral("help_donate")};
+    for (QMenu *menu : menuBar()->findChildren<QMenu *>()) {
+        for (QAction *action : menu->actions()) {
+            if (excludedHelpActions.contains(action->objectName())) {
+                menu->removeAction(action);
+            }
+        }
+    }
     m_sidebar->setVisible(isSidebarVisible);
 
     // dock KPart's sidebar if new and make it current

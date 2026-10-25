@@ -11,6 +11,8 @@
 
 #include <QList>
 #include <QPointer>
+#include <QSet>
+#include <QStringList>
 
 #include <KLocalizedString>
 #include <QIcon>
@@ -349,9 +351,11 @@ QVariant AnnotationModel::data(const QModelIndex &index, int role) const
         }
         return GuiUtils::iconForAnnotationInfo(info);
     } break;
-    case Qt::ToolTipRole:
-        return GuiUtils::prettyToolTip(item->annotation);
-        break;
+    case Qt::ToolTipRole: {
+        QString tooltip = GuiUtils::prettyToolTip(item->annotation);
+        tooltip.insert(4, i18n("Page %1", item->page + 1) + QLatin1String("<br/>"));
+        return tooltip;
+    }
     case AuthorRole:
         return item->annotation->author();
         break;
@@ -428,6 +432,61 @@ Okular::Annotation *AnnotationModel::annotationForIndex(const QModelIndex &index
 
     const AnnItem *item = static_cast<AnnItem *>(index.internalPointer());
     return item->annotation;
+}
+
+bool AnnotationModel::canChangeAnnotationAuthor(const QModelIndex &index) const
+{
+    return canChangeAnnotationAuthors({index});
+}
+
+bool AnnotationModel::changeAnnotationAuthor(const QModelIndex &index, const QString &author)
+{
+    return changeAnnotationAuthors({index}, author);
+}
+
+bool AnnotationModel::canChangeAnnotationAuthors(const QModelIndexList &indexes) const
+{
+    if (indexes.isEmpty() || !d->document) {
+        return false;
+    }
+
+    QSet<const Okular::Annotation *> seenAnnotations;
+    int page = -1;
+    for (const QModelIndex &index : indexes) {
+        Okular::Annotation *annotation = annotationForIndex(index);
+        if (!annotation || !d->document->canModifyPageAnnotation(annotation) || seenAnnotations.contains(annotation)) {
+            return false;
+        }
+
+        const AnnItem *item = static_cast<const AnnItem *>(index.internalPointer());
+        if (page >= 0 && page != item->page) {
+            return false;
+        }
+        page = item->page;
+        seenAnnotations.insert(annotation);
+    }
+
+    return true;
+}
+
+bool AnnotationModel::changeAnnotationAuthors(const QModelIndexList &indexes, const QString &author)
+{
+    if (!canChangeAnnotationAuthors(indexes)) {
+        return false;
+    }
+
+    const AnnItem *firstItem = static_cast<const AnnItem *>(indexes.first().internalPointer());
+    QStringList uniqueNames;
+    uniqueNames.reserve(indexes.size());
+    for (const QModelIndex &index : indexes) {
+        Okular::Annotation *annotation = annotationForIndex(index);
+        if (annotation->author() == author) {
+            return false;
+        }
+        uniqueNames.append(annotation->uniqueName());
+    }
+
+    return d->document->changePageAnnotationsAuthor(firstItem->page, uniqueNames, author);
 }
 
 #include "moc_annotationmodel.cpp"

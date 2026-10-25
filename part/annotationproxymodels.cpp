@@ -6,12 +6,16 @@
 
 #include "annotationproxymodels.h"
 
+#include <QDataStream>
+#include <QIODevice>
 #include <QItemSelection>
 #include <QList>
+#include <QMimeData>
 
 #include <QIcon>
 
 #include "annotationmodel.h"
+#include "core/annotations.h"
 #include "gui/debug_ui.h"
 
 PageFilterProxyModel::PageFilterProxyModel(QObject *parent)
@@ -61,244 +65,123 @@ bool PageFilterProxyModel::filterAcceptsRow(int row, const QModelIndex &sourcePa
     return (page == mCurrentPage);
 }
 
-PageGroupProxyModel::PageGroupProxyModel(QObject *parent)
+AnnotationListProxyModel::AnnotationListProxyModel(QObject *parent)
     : QAbstractProxyModel(parent)
-    , mGroupByPage(false)
 {
 }
 
-int PageGroupProxyModel::columnCount(const QModelIndex &parentIndex) const
+int AnnotationListProxyModel::columnCount(const QModelIndex &) const
 {
-    // For top-level and second level we have always only one column
-    if (mGroupByPage) {
-        if (parentIndex.isValid()) {
-            if (parentIndex.parent().isValid()) {
-                return 0;
-            } else {
-                return 1; // second-level
-            }
-        } else {
-            return 1; // top-level
-        }
-    } else {
-        if (!parentIndex.isValid()) { // top-level
-            return 1;
-        } else {
-            return 0;
-        }
-    }
     return 1;
 }
 
-int PageGroupProxyModel::rowCount(const QModelIndex &parentIndex) const
+int AnnotationListProxyModel::rowCount(const QModelIndex &parentIndex) const
 {
-    if (mGroupByPage) {
-        if (parentIndex.isValid()) {
-            if (parentIndex.parent().isValid()) {
-                return 0;
-            } else {
-                return mTreeIndexes[parentIndex.row()].second.count(); // second-level
-            }
-        } else {
-            return mTreeIndexes.count(); // top-level
-        }
-    } else {
-        if (!parentIndex.isValid()) { // top-level
-            return mIndexes.count();
-        } else {
-            return 0;
-        }
-    }
+    return parentIndex.isValid() ? 0 : mIndexes.count();
 }
 
-QModelIndex PageGroupProxyModel::index(int row, int column, const QModelIndex &parentIndex) const
+QModelIndex AnnotationListProxyModel::index(int row, int column, const QModelIndex &parentIndex) const
 {
-    if (row < 0 || column != 0) {
+    if (parentIndex.isValid() || row < 0 || row >= mIndexes.count() || column != 0) {
         return QModelIndex();
     }
-
-    if (mGroupByPage) {
-        if (parentIndex.isValid()) {
-            if (parentIndex.row() >= 0 && parentIndex.row() < mTreeIndexes.count() && row < mTreeIndexes[parentIndex.row()].second.count()) {
-                return createIndex(row, column, qint32(parentIndex.row() + 1));
-            } else {
-                return QModelIndex();
-            }
-        } else {
-            if (row < mTreeIndexes.count()) {
-                return createIndex(row, column);
-            } else {
-                return QModelIndex();
-            }
-        }
-    } else {
-        // We have only top-level items
-        if (!parentIndex.isValid() && row < mIndexes.count()) {
-            return createIndex(row, column);
-        } else {
-            return QModelIndex();
-        }
-    }
+    return createIndex(row, column);
 }
 
-QModelIndex PageGroupProxyModel::parent(const QModelIndex &idx) const
+QModelIndex AnnotationListProxyModel::parent(const QModelIndex &) const
 {
-    if (mGroupByPage) {
-        if (idx.internalId() == 0) { // top-level
-            return QModelIndex();
-        } else {
-            return index(idx.internalId() - 1, idx.column());
-        }
-    } else {
-        // We have only top-level items
+    return QModelIndex();
+}
+
+QModelIndex AnnotationListProxyModel::mapFromSource(const QModelIndex &sourceIndex) const
+{
+    const int row = mIndexes.indexOf(sourceIndex);
+    if (row < 0) {
         return QModelIndex();
     }
+    return index(row, sourceIndex.column());
 }
 
-QModelIndex PageGroupProxyModel::mapFromSource(const QModelIndex &sourceIndex) const
+QModelIndex AnnotationListProxyModel::mapToSource(const QModelIndex &proxyIndex) const
 {
-    if (mGroupByPage) {
-        if (sourceIndex.parent().isValid()) {
-            return index(sourceIndex.row(), sourceIndex.column(), sourceIndex.parent());
-        } else {
-            return index(sourceIndex.row(), sourceIndex.column());
-        }
-    } else {
-        for (int i = 0; i < mIndexes.count(); ++i) {
-            if (mIndexes[i] == sourceIndex) {
-                return index(i, 0);
-            }
-        }
-
+    if (!proxyIndex.isValid() || proxyIndex.row() < 0 || proxyIndex.row() >= mIndexes.count()) {
         return QModelIndex();
     }
+    return mIndexes[proxyIndex.row()];
 }
 
-QModelIndex PageGroupProxyModel::mapToSource(const QModelIndex &proxyIndex) const
-{
-    if (!proxyIndex.isValid()) {
-        return QModelIndex();
-    }
-
-    if (mGroupByPage) {
-        if (proxyIndex.internalId() == 0) {
-            if (proxyIndex.row() >= mTreeIndexes.count() || proxyIndex.row() < 0) {
-                return QModelIndex();
-            }
-
-            return mTreeIndexes[proxyIndex.row()].first;
-        } else {
-            if (qint32(proxyIndex.internalId()) - 1 >= mTreeIndexes.count() || proxyIndex.row() >= mTreeIndexes[proxyIndex.internalId() - 1].second.count()) {
-                return QModelIndex();
-            }
-
-            return mTreeIndexes[proxyIndex.internalId() - 1].second[proxyIndex.row()];
-        }
-    } else {
-        if (proxyIndex.column() > 0 || proxyIndex.row() >= mIndexes.count()) {
-            return QModelIndex();
-        } else {
-            return mIndexes[proxyIndex.row()];
-        }
-    }
-}
-
-void PageGroupProxyModel::setSourceModel(QAbstractItemModel *model)
+void AnnotationListProxyModel::setSourceModel(QAbstractItemModel *model)
 {
     if (sourceModel()) {
-        disconnect(sourceModel(), &QAbstractItemModel::layoutAboutToBeChanged, this, &PageGroupProxyModel::aboutToRebuild);
-        disconnect(sourceModel(), &QAbstractItemModel::layoutChanged, this, &PageGroupProxyModel::rebuild);
-        disconnect(sourceModel(), &QAbstractItemModel::modelAboutToBeReset, this, &PageGroupProxyModel::aboutToRebuild);
-        disconnect(sourceModel(), &QAbstractItemModel::modelReset, this, &PageGroupProxyModel::rebuild);
-        disconnect(sourceModel(), &QAbstractItemModel::rowsAboutToBeInserted, this, &PageGroupProxyModel::aboutToRebuild);
-        disconnect(sourceModel(), &QAbstractItemModel::rowsInserted, this, &PageGroupProxyModel::rebuild);
-        disconnect(sourceModel(), &QAbstractItemModel::rowsAboutToBeRemoved, this, &PageGroupProxyModel::aboutToRebuild);
-        disconnect(sourceModel(), &QAbstractItemModel::rowsRemoved, this, &PageGroupProxyModel::rebuild);
-        disconnect(sourceModel(), &QAbstractItemModel::dataChanged, this, &PageGroupProxyModel::sourceDataChanged);
+        disconnect(sourceModel(), &QAbstractItemModel::layoutAboutToBeChanged, this, &AnnotationListProxyModel::aboutToRebuild);
+        disconnect(sourceModel(), &QAbstractItemModel::layoutChanged, this, &AnnotationListProxyModel::rebuild);
+        disconnect(sourceModel(), &QAbstractItemModel::modelAboutToBeReset, this, &AnnotationListProxyModel::aboutToRebuild);
+        disconnect(sourceModel(), &QAbstractItemModel::modelReset, this, &AnnotationListProxyModel::rebuild);
+        disconnect(sourceModel(), &QAbstractItemModel::rowsAboutToBeInserted, this, &AnnotationListProxyModel::aboutToRebuild);
+        disconnect(sourceModel(), &QAbstractItemModel::rowsInserted, this, &AnnotationListProxyModel::rebuild);
+        disconnect(sourceModel(), &QAbstractItemModel::rowsAboutToBeRemoved, this, &AnnotationListProxyModel::aboutToRebuild);
+        disconnect(sourceModel(), &QAbstractItemModel::rowsRemoved, this, &AnnotationListProxyModel::rebuild);
+        disconnect(sourceModel(), &QAbstractItemModel::dataChanged, this, &AnnotationListProxyModel::sourceDataChanged);
     }
 
     QAbstractProxyModel::setSourceModel(model);
 
-    connect(sourceModel(), &QAbstractItemModel::layoutAboutToBeChanged, this, &PageGroupProxyModel::aboutToRebuild);
-    connect(sourceModel(), &QAbstractItemModel::layoutChanged, this, &PageGroupProxyModel::rebuild);
-    connect(sourceModel(), &QAbstractItemModel::modelAboutToBeReset, this, &PageGroupProxyModel::aboutToRebuild);
-    connect(sourceModel(), &QAbstractItemModel::modelReset, this, &PageGroupProxyModel::rebuild);
-    connect(sourceModel(), &QAbstractItemModel::rowsAboutToBeInserted, this, &PageGroupProxyModel::aboutToRebuild);
-    connect(sourceModel(), &QAbstractItemModel::rowsInserted, this, &PageGroupProxyModel::rebuild);
-    connect(sourceModel(), &QAbstractItemModel::rowsAboutToBeRemoved, this, &PageGroupProxyModel::aboutToRebuild);
-    connect(sourceModel(), &QAbstractItemModel::rowsRemoved, this, &PageGroupProxyModel::rebuild);
-    connect(sourceModel(), &QAbstractItemModel::dataChanged, this, &PageGroupProxyModel::sourceDataChanged);
+    connect(sourceModel(), &QAbstractItemModel::layoutAboutToBeChanged, this, &AnnotationListProxyModel::aboutToRebuild);
+    connect(sourceModel(), &QAbstractItemModel::layoutChanged, this, &AnnotationListProxyModel::rebuild);
+    connect(sourceModel(), &QAbstractItemModel::modelAboutToBeReset, this, &AnnotationListProxyModel::aboutToRebuild);
+    connect(sourceModel(), &QAbstractItemModel::modelReset, this, &AnnotationListProxyModel::rebuild);
+    connect(sourceModel(), &QAbstractItemModel::rowsAboutToBeInserted, this, &AnnotationListProxyModel::aboutToRebuild);
+    connect(sourceModel(), &QAbstractItemModel::rowsInserted, this, &AnnotationListProxyModel::rebuild);
+    connect(sourceModel(), &QAbstractItemModel::rowsAboutToBeRemoved, this, &AnnotationListProxyModel::aboutToRebuild);
+    connect(sourceModel(), &QAbstractItemModel::rowsRemoved, this, &AnnotationListProxyModel::rebuild);
+    connect(sourceModel(), &QAbstractItemModel::dataChanged, this, &AnnotationListProxyModel::sourceDataChanged);
 
     rebuildIndexes();
 }
 
-void PageGroupProxyModel::doRebuildIndexes()
+void AnnotationListProxyModel::doRebuildIndexes()
 {
-    if (mGroupByPage) {
-        mTreeIndexes.clear();
-
-        for (int row = 0; row < sourceModel()->rowCount(); ++row) {
-            const QModelIndex pageIndex = sourceModel()->index(row, 0);
-
-            QList<QModelIndex> itemIndexes;
-            for (int subRow = 0; subRow < sourceModel()->rowCount(pageIndex); ++subRow) {
-                itemIndexes.append(sourceModel()->index(subRow, 0, pageIndex));
-            }
-
-            mTreeIndexes.append(QPair<QModelIndex, QList<QModelIndex>>(pageIndex, itemIndexes));
-        }
-    } else {
-        mIndexes.clear();
-
-        // Flatten the source model
-        for (int row = 0; row < sourceModel()->rowCount(); ++row) {
-            const QModelIndex pageIndex = sourceModel()->index(row, 0);
-            for (int subRow = 0; subRow < sourceModel()->rowCount(pageIndex); ++subRow) {
-                mIndexes.append(sourceModel()->index(subRow, 0, pageIndex));
-            }
+    mIndexes.clear();
+    for (int row = 0; row < sourceModel()->rowCount(); ++row) {
+        const QModelIndex pageIndex = sourceModel()->index(row, 0);
+        for (int subRow = 0; subRow < sourceModel()->rowCount(pageIndex); ++subRow) {
+            mIndexes.append(sourceModel()->index(subRow, 0, pageIndex));
         }
     }
 }
 
-void PageGroupProxyModel::aboutToRebuild()
+void AnnotationListProxyModel::aboutToRebuild()
 {
     beginResetModel();
 }
 
-void PageGroupProxyModel::rebuild()
+void AnnotationListProxyModel::rebuild()
 {
     doRebuildIndexes();
     endResetModel();
 }
 
-void PageGroupProxyModel::rebuildIndexes()
+void AnnotationListProxyModel::rebuildIndexes()
 {
     aboutToRebuild();
     rebuild();
 }
 
-void PageGroupProxyModel::sourceDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles)
+void AnnotationListProxyModel::sourceDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles)
 {
-    Q_EMIT dataChanged(mapFromSource(topLeft), mapFromSource(bottomRight), roles);
-}
-
-void PageGroupProxyModel::groupByPage(bool value)
-{
-    if (mGroupByPage == value) {
-        return;
+    const QModelIndex proxyTopLeft = mapFromSource(topLeft);
+    const QModelIndex proxyBottomRight = mapFromSource(bottomRight);
+    if (proxyTopLeft.isValid() && proxyBottomRight.isValid()) {
+        Q_EMIT dataChanged(proxyTopLeft, proxyBottomRight, roles);
     }
-
-    mGroupByPage = value;
-
-    rebuildIndexes();
 }
 
 class AuthorGroupItem
 {
 public:
-    enum Type { Page, Author, Annotation };
+    enum Type { Root, Author, Annotation };
 
-    explicit AuthorGroupItem(AuthorGroupItem *parent, Type type = Page, const QModelIndex &index = QModelIndex())
+    explicit AuthorGroupItem(AuthorGroupItem *parent, Type type = Root, const QModelIndex &index = QModelIndex())
         : mParent(parent)
         , mType(type)
         , mIndex(index)
@@ -337,7 +220,7 @@ public:
             prefix += QLatin1Char(' ');
         }
 
-        qCDebug(OkularUiDebug, "%s%s", qPrintable(prefix), (mType == Page ? "Page" : (mType == Author ? "Author" : "Annotation")));
+        qCDebug(OkularUiDebug, "%s%s", qPrintable(prefix), (mType == Root ? "Root" : (mType == Author ? "Author" : "Annotation")));
 
         for (int i = 0; i < mChilds.count(); ++i) {
             mChilds[i]->dump(level + 2);
@@ -397,7 +280,6 @@ public:
     explicit Private(AuthorGroupProxyModel *parent)
         : mParent(parent)
         , mRoot(nullptr)
-        , mGroupByAuthor(false)
     {
     }
     ~Private()
@@ -407,7 +289,6 @@ public:
 
     AuthorGroupProxyModel *mParent;
     AuthorGroupItem *mRoot;
-    bool mGroupByAuthor;
 };
 
 AuthorGroupProxyModel::AuthorGroupProxyModel(QObject *parent)
@@ -539,6 +420,201 @@ static bool isAuthorItem(const QModelIndex &index)
     return (item->type() == AuthorGroupItem::Author);
 }
 
+static const AuthorGroupItem *authorDropTarget(const AuthorGroupProxyModel *model, int row, const QModelIndex &parent)
+{
+    if (parent.isValid()) {
+        const auto *item = static_cast<const AuthorGroupItem *>(parent.internalPointer());
+        while (item && item->type() != AuthorGroupItem::Author) {
+            item = item->parent();
+        }
+        return item;
+    }
+
+    // QTreeView reports drops between top-level rows as an insertion row with
+    // an invalid parent. Treat that position as a drop on the nearest author.
+    const int authorCount = model->rowCount(QModelIndex());
+    if (row < 0 || authorCount == 0) {
+        return nullptr;
+    }
+    const QModelIndex candidate = model->index(qMin(row, authorCount - 1), 0);
+    return isAuthorItem(candidate) ? static_cast<const AuthorGroupItem *>(candidate.internalPointer()) : nullptr;
+}
+
+bool AuthorGroupProxyModel::isAuthorGroup(const QModelIndex &index) const
+{
+    return index.model() == this && isAuthorItem(index);
+}
+
+static const AnnotationModel *annotationModelFor(const QAbstractItemModel *model)
+{
+    while (const auto proxyModel = qobject_cast<const QAbstractProxyModel *>(model)) {
+        model = proxyModel->sourceModel();
+    }
+    return qobject_cast<const AnnotationModel *>(model);
+}
+
+static QModelIndex annotationIndexFor(const AnnotationModel *model, int page, const QString &uniqueName)
+{
+    if (!model || page < 0 || uniqueName.isEmpty()) {
+        return {};
+    }
+
+    for (int pageRow = 0; pageRow < model->rowCount(); ++pageRow) {
+        const QModelIndex pageIndex = model->index(pageRow, 0);
+        if (model->data(pageIndex, AnnotationModel::PageRole).toInt() != page) {
+            continue;
+        }
+        for (int annotationRow = 0; annotationRow < model->rowCount(pageIndex); ++annotationRow) {
+            const QModelIndex annotationIndex = model->index(annotationRow, 0, pageIndex);
+            const Okular::Annotation *annotation = model->annotationForIndex(annotationIndex);
+            if (annotation && annotation->uniqueName() == uniqueName) {
+                return annotationIndex;
+            }
+        }
+        break;
+    }
+    return {};
+}
+
+static QModelIndex annotationIndexInBaseModel(const QAbstractItemModel *source, QModelIndex index)
+{
+    while (const auto proxyModel = qobject_cast<const QAbstractProxyModel *>(source)) {
+        index = proxyModel->mapToSource(index);
+        source = proxyModel->sourceModel();
+    }
+    return qobject_cast<const AnnotationModel *>(source) ? index : QModelIndex();
+}
+
+static const QString annotationAuthorMimeType = QStringLiteral("application/x-okular-annotation-author");
+
+static bool decodeAnnotationAuthorMimeData(const QMimeData *mimeData, const QUuid &dragToken, int *page, QString *sourceAuthor, QStringList *uniqueNames)
+{
+    if (!mimeData || !mimeData->hasFormat(annotationAuthorMimeType)) {
+        return false;
+    }
+
+    QDataStream stream(mimeData->data(annotationAuthorMimeType));
+    QUuid token;
+    stream >> token >> *page >> *sourceAuthor >> *uniqueNames;
+    if (stream.status() != QDataStream::Ok || token != dragToken || *page < 0 || uniqueNames->size() != 1 || uniqueNames->first().isEmpty()) {
+        return false;
+    }
+    return true;
+}
+
+QStringList AuthorGroupProxyModel::mimeTypes() const
+{
+    return {annotationAuthorMimeType};
+}
+
+QMimeData *AuthorGroupProxyModel::mimeData(const QModelIndexList &indexes) const
+{
+    auto *mimeData = new QMimeData;
+    if (indexes.isEmpty()) {
+        return mimeData;
+    }
+
+    const QModelIndex proxyIndex = indexes.first();
+    const auto *item = static_cast<const AuthorGroupItem *>(proxyIndex.internalPointer());
+    const AnnotationModel *model = annotationModelFor(sourceModel());
+    int page = -1;
+    QString sourceAuthor;
+    QStringList uniqueNames;
+    if (item->type() != AuthorGroupItem::Annotation) {
+        return mimeData;
+    }
+
+    const QModelIndex annotationIndex = annotationIndexInBaseModel(sourceModel(), item->index());
+    const Okular::Annotation *annotation = model ? model->annotationForIndex(annotationIndex) : nullptr;
+    if (!annotation || !model->canChangeAnnotationAuthor(annotationIndex)) {
+        return mimeData;
+    }
+    page = model->data(annotationIndex, AnnotationModel::PageRole).toInt();
+    sourceAuthor = model->data(annotationIndex, AnnotationModel::AuthorRole).toString();
+    uniqueNames.append(annotation->uniqueName());
+
+    QByteArray payload;
+    QDataStream stream(&payload, QIODevice::WriteOnly);
+    stream << m_dragToken << page << sourceAuthor << uniqueNames;
+    if (stream.status() == QDataStream::Ok) {
+        mimeData->setData(annotationAuthorMimeType, payload);
+    }
+    return mimeData;
+}
+
+bool AuthorGroupProxyModel::canDropMimeData(const QMimeData *mimeData, Qt::DropAction action, int row, int column, const QModelIndex &parent) const
+{
+    if (action != Qt::MoveAction || row < -1 || column > 0) {
+        return false;
+    }
+
+    int page = -1;
+    QString sourceAuthor;
+    QStringList uniqueNames;
+    if (!decodeAnnotationAuthorMimeData(mimeData, m_dragToken, &page, &sourceAuthor, &uniqueNames)) {
+        return false;
+    }
+
+    const AuthorGroupItem *target = authorDropTarget(this, row, parent);
+    const AnnotationModel *model = annotationModelFor(sourceModel());
+    if (!model || !target || sourceAuthor == target->author()) {
+        return false;
+    }
+
+    QModelIndexList annotationIndexes;
+    for (const QString &uniqueName : std::as_const(uniqueNames)) {
+        const QModelIndex annotationIndex = annotationIndexFor(model, page, uniqueName);
+        const Okular::Annotation *annotation = model->annotationForIndex(annotationIndex);
+        if (!annotation || model->data(annotationIndex, AnnotationModel::AuthorRole).toString() != sourceAuthor) {
+            return false;
+        }
+        annotationIndexes.append(annotationIndex);
+    }
+    return annotationIndexes.size() == 1 && model->canChangeAnnotationAuthor(annotationIndexes.first());
+}
+
+bool AuthorGroupProxyModel::dropMimeData(const QMimeData *mimeData, Qt::DropAction action, int row, int column, const QModelIndex &parent)
+{
+    if (!canDropMimeData(mimeData, action, row, column, parent)) {
+        return false;
+    }
+
+    int page = -1;
+    QString sourceAuthor;
+    QStringList uniqueNames;
+    if (!decodeAnnotationAuthorMimeData(mimeData, m_dragToken, &page, &sourceAuthor, &uniqueNames)) {
+        return false;
+    }
+
+    const AuthorGroupItem *target = authorDropTarget(this, row, parent);
+    if (!target) {
+        return false;
+    }
+    const QString targetAuthor = target->author();
+    const AnnotationModel *model = annotationModelFor(sourceModel());
+    if (!model) {
+        return false;
+    }
+
+    QModelIndexList annotationIndexes;
+    for (const QString &uniqueName : std::as_const(uniqueNames)) {
+        annotationIndexes.append(annotationIndexFor(model, page, uniqueName));
+    }
+    return annotationIndexes.size() == 1 && const_cast<AnnotationModel *>(model)->changeAnnotationAuthor(annotationIndexes.first(), targetAuthor);
+}
+
+Qt::DropActions AuthorGroupProxyModel::supportedDragActions() const
+{
+    // QAbstractProxyModel otherwise forwards CopyAction from the source model,
+    // which QAbstractItemView::InternalMove excludes before starting the drag.
+    return Qt::MoveAction;
+}
+
+Qt::DropActions AuthorGroupProxyModel::supportedDropActions() const
+{
+    return Qt::MoveAction;
+}
+
 QItemSelection AuthorGroupProxyModel::mapSelectionToSource(const QItemSelection &selection) const
 {
     const QModelIndexList proxyIndexes = selection.indexes();
@@ -585,21 +661,21 @@ QMap<int, QVariant> AuthorGroupProxyModel::itemData(const QModelIndex &index) co
 Qt::ItemFlags AuthorGroupProxyModel::flags(const QModelIndex &index) const
 {
     if (isAuthorItem(index)) {
-        return Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-    } else {
-        return QAbstractProxyModel::flags(index);
-    }
-}
-
-void AuthorGroupProxyModel::groupByAuthor(bool value)
-{
-    if (d->mGroupByAuthor == value) {
-        return;
+        return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDropEnabled;
     }
 
-    d->mGroupByAuthor = value;
-
-    rebuildIndexes();
+    Qt::ItemFlags itemFlags = QAbstractProxyModel::flags(index);
+    if (index.isValid()) {
+        const auto *item = static_cast<const AuthorGroupItem *>(index.internalPointer());
+        if (item->type() == AuthorGroupItem::Annotation) {
+            const AnnotationModel *model = annotationModelFor(sourceModel());
+            const QModelIndex annotationIndex = annotationIndexInBaseModel(sourceModel(), item->index());
+            if (model && model->canChangeAnnotationAuthor(annotationIndex)) {
+                itemFlags |= Qt::ItemIsDragEnabled;
+            }
+        }
+    }
+    return itemFlags;
 }
 
 void AuthorGroupProxyModel::doRebuildIndexes()
@@ -607,79 +683,24 @@ void AuthorGroupProxyModel::doRebuildIndexes()
     delete d->mRoot;
     d->mRoot = new AuthorGroupItem(nullptr);
 
-    if (d->mGroupByAuthor) {
-        QMap<QString, AuthorGroupItem *> authorMap;
+    QMap<QString, AuthorGroupItem *> authorMap;
 
-        for (int row = 0; row < sourceModel()->rowCount(); ++row) {
-            const QModelIndex idx = sourceModel()->index(row, 0);
-            const QString author = sourceModel()->data(idx, AnnotationModel::AuthorRole).toString();
-            if (!author.isEmpty()) {
-                // We have the annotations as top-level, so introduce authors as new
-                // top-levels and append the annotations
-                AuthorGroupItem *authorItem = authorMap.value(author, nullptr);
-                if (!authorItem) {
-                    authorItem = new AuthorGroupItem(d->mRoot, AuthorGroupItem::Author);
-                    authorItem->setAuthor(author);
-
-                    // Add item to tree
-                    d->mRoot->appendChild(authorItem);
-
-                    // Insert to lookup list
-                    authorMap.insert(author, authorItem);
-                }
-
-                AuthorGroupItem *item = new AuthorGroupItem(authorItem, AuthorGroupItem::Annotation, idx);
-                authorItem->appendChild(item);
-            } else {
-                // We have the pages as top-level, so we use them as top-level, append the
-                // authors for all annotations of the page, and then the annotations themself
-                AuthorGroupItem *pageItem = new AuthorGroupItem(d->mRoot, AuthorGroupItem::Page, idx);
-                d->mRoot->appendChild(pageItem);
-
-                // First collect all authors...
-                QMap<QString, AuthorGroupItem *> pageAuthorMap;
-                for (int subRow = 0; subRow < sourceModel()->rowCount(idx); ++subRow) {
-                    const QModelIndex annIdx = sourceModel()->index(subRow, 0, idx);
-                    const QString pageAuthor = sourceModel()->data(annIdx, AnnotationModel::AuthorRole).toString();
-
-                    AuthorGroupItem *authorItem = pageAuthorMap.value(pageAuthor, nullptr);
-                    if (!authorItem) {
-                        authorItem = new AuthorGroupItem(pageItem, AuthorGroupItem::Author);
-                        authorItem->setAuthor(pageAuthor);
-
-                        // Add item to tree
-                        pageItem->appendChild(authorItem);
-
-                        // Insert to lookup list
-                        pageAuthorMap.insert(pageAuthor, authorItem);
-                    }
-
-                    AuthorGroupItem *item = new AuthorGroupItem(authorItem, AuthorGroupItem::Annotation, annIdx);
-                    authorItem->appendChild(item);
-                }
-            }
+    const auto appendAnnotation = [this, &authorMap](const QModelIndex &annotationIndex) {
+        const QString author = sourceModel()->data(annotationIndex, AnnotationModel::AuthorRole).toString();
+        AuthorGroupItem *authorItem = authorMap.value(author, nullptr);
+        if (!authorItem) {
+            authorItem = new AuthorGroupItem(d->mRoot, AuthorGroupItem::Author);
+            authorItem->setAuthor(author);
+            d->mRoot->appendChild(authorItem);
+            authorMap.insert(author, authorItem);
         }
-    } else {
-        for (int row = 0; row < sourceModel()->rowCount(); ++row) {
-            const QModelIndex idx = sourceModel()->index(row, 0);
-            const QString author = sourceModel()->data(idx, AnnotationModel::AuthorRole).toString();
-            if (!author.isEmpty()) {
-                // We have the annotations as top-level items
-                AuthorGroupItem *item = new AuthorGroupItem(d->mRoot, AuthorGroupItem::Annotation, idx);
-                d->mRoot->appendChild(item);
-            } else {
-                // We have the pages as top-level items
-                AuthorGroupItem *pageItem = new AuthorGroupItem(d->mRoot, AuthorGroupItem::Page, idx);
-                d->mRoot->appendChild(pageItem);
 
-                // Append all annotations as second-level
-                for (int subRow = 0; subRow < sourceModel()->rowCount(idx); ++subRow) {
-                    const QModelIndex subIdx = sourceModel()->index(subRow, 0, idx);
-                    AuthorGroupItem *item = new AuthorGroupItem(pageItem, AuthorGroupItem::Annotation, subIdx);
-                    pageItem->appendChild(item);
-                }
-            }
-        }
+        authorItem->appendChild(new AuthorGroupItem(authorItem, AuthorGroupItem::Annotation, annotationIndex));
+    };
+
+    for (int row = 0; row < sourceModel()->rowCount(); ++row) {
+        const QModelIndex idx = sourceModel()->index(row, 0);
+        appendAnnotation(idx);
     }
 }
 
@@ -702,6 +723,10 @@ void AuthorGroupProxyModel::rebuildIndexes()
 
 void AuthorGroupProxyModel::sourceDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles)
 {
+    if (roles.isEmpty() || roles.contains(AnnotationModel::AuthorRole)) {
+        rebuildIndexes();
+        return;
+    }
     Q_EMIT dataChanged(mapFromSource(topLeft), mapFromSource(bottomRight), roles);
 }
 

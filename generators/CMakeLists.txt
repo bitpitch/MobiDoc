@@ -15,40 +15,42 @@ if(Poppler_Qt6_FOUND)
   add_subdirectory(poppler)
 endif(Poppler_Qt6_FOUND)
 
-if(LIBSPECTRE_FOUND)
-  add_subdirectory(spectre)
-endif(LIBSPECTRE_FOUND)
+if(NOT MOBIDOC_PDF_ONLY)
+  if(LIBSPECTRE_FOUND)
+    add_subdirectory(spectre)
+  endif(LIBSPECTRE_FOUND)
 
-add_subdirectory( kimgio )
+  add_subdirectory( kimgio )
 
-if(DJVULIBRE_FOUND)
-  add_subdirectory(djvu)
-endif(DJVULIBRE_FOUND)
+  if(DJVULIBRE_FOUND)
+    add_subdirectory(djvu)
+  endif(DJVULIBRE_FOUND)
 
-add_subdirectory(dvi)
+  add_subdirectory(dvi)
 
-if(TIFF_FOUND)
-  add_subdirectory(tiff)
-endif(TIFF_FOUND)
+  if(TIFF_FOUND)
+    add_subdirectory(tiff)
+  endif(TIFF_FOUND)
 
-add_subdirectory(xps)
+  add_subdirectory(xps)
 
-add_subdirectory(fictionbook)
+  add_subdirectory(fictionbook)
 
-add_subdirectory(comicbook)
+  add_subdirectory(comicbook)
 
-add_subdirectory(fax)
+  add_subdirectory(fax)
 
-if(EPUB_FOUND)
-  add_subdirectory(epub)
-endif(EPUB_FOUND)
+  if(EPUB_FOUND)
+    add_subdirectory(epub)
+  endif(EPUB_FOUND)
 
-add_subdirectory(txt)
+  add_subdirectory(txt)
 
-if(QMobipocket6_FOUND)
-  add_subdirectory(mobipocket)
-endif()
+  if(QMobipocket6_FOUND)
+    add_subdirectory(mobipocket)
+  endif()
 
-if(Discount_FOUND)
-  add_subdirectory(markdown)
-endif()
+  if(Discount_FOUND)
+    add_subdirectory(markdown)
+  endif()
+endif() # MOBIDOC_PDF_ONLY

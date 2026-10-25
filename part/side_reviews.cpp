@@ -8,9 +8,17 @@
 
 // qt/kde includes
 #include <QAction>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QHeaderView>
 #include <QIcon>
+#include <QInputDialog>
+#include <QItemSelectionModel>
 #include <QLayout>
+#include <QLineEdit>
+#include <QMenu>
+#include <QMimeData>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QSizePolicy>
@@ -45,6 +53,57 @@ public:
     }
 
 protected:
+    QModelIndex dropTargetAt(const QPoint &position) const
+    {
+        QModelIndex target = indexAt(position);
+        while (target.isValid() && !(model()->flags(target) & Qt::ItemIsDropEnabled)) {
+            target = target.parent();
+        }
+        return target;
+    }
+
+    void dragEnterEvent(QDragEnterEvent *event) override
+    {
+        bool supportedMimeType = false;
+        if (model() && event->mimeData()) {
+            const QStringList supportedTypes = model()->mimeTypes();
+            for (const QString &format : event->mimeData()->formats()) {
+                if (supportedTypes.contains(format)) {
+                    supportedMimeType = true;
+                    break;
+                }
+            }
+        }
+        if (event->proposedAction() == Qt::MoveAction && supportedMimeType) {
+            event->setDropAction(Qt::MoveAction);
+            event->accept();
+            return;
+        }
+        QTreeView::dragEnterEvent(event);
+    }
+
+    void dragMoveEvent(QDragMoveEvent *event) override
+    {
+        const QModelIndex target = dropTargetAt(event->position().toPoint());
+        if (target.isValid() && model()->canDropMimeData(event->mimeData(), Qt::MoveAction, -1, 0, target)) {
+            event->setDropAction(Qt::MoveAction);
+            event->accept();
+            return;
+        }
+        event->ignore();
+    }
+
+    void dropEvent(QDropEvent *event) override
+    {
+        const QModelIndex target = dropTargetAt(event->position().toPoint());
+        if (target.isValid() && model()->dropMimeData(event->mimeData(), Qt::MoveAction, -1, 0, target)) {
+            event->setDropAction(Qt::MoveAction);
+            event->accept();
+            return;
+        }
+        event->ignore();
+    }
+
     void paintEvent(QPaintEvent *event) override
     {
         bool hasAnnotations = false;
@@ -99,6 +158,11 @@ Reviews::Reviews(QWidget *parent, Okular::Document *document)
     m_view = new TreeView(m_document, this);
     m_view->setAlternatingRowColors(true);
     m_view->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_view->setDragDropMode(QAbstractItemView::InternalMove);
+    m_view->setDefaultDropAction(Qt::MoveAction);
+    m_view->setDragEnabled(true);
+    m_view->setAcceptDrops(true);
+    m_view->setDropIndicatorShown(true);
     m_view->header()->hide();
 
     QToolBar *toolBar = new QToolBar(this);
@@ -110,12 +174,12 @@ Reviews::Reviews(QWidget *parent, Okular::Document *document)
     m_model = new AnnotationModel(m_document, m_view);
 
     m_filterProxy = new PageFilterProxyModel(m_view);
-    m_groupProxy = new PageGroupProxyModel(m_view);
+    m_annotationListProxy = new AnnotationListProxyModel(m_view);
     m_authorProxy = new AuthorGroupProxyModel(m_view);
 
     m_filterProxy->setSourceModel(m_model);
-    m_groupProxy->setSourceModel(m_filterProxy);
-    m_authorProxy->setSourceModel(m_groupProxy);
+    m_annotationListProxy->setSourceModel(m_filterProxy);
+    m_authorProxy->setSourceModel(m_annotationListProxy);
 
     m_view->setModel(m_authorProxy);
 
@@ -136,19 +200,6 @@ Reviews::Reviews(QWidget *parent, Okular::Document *document)
 
     toolBar->setIconSize(QSize(16, 16));
     toolBar->setMovable(false);
-    // - add Page button
-    QAction *groupByPageAction = toolBar->addAction(QIcon::fromTheme(QStringLiteral("text-x-generic")), i18n("Group by Page"));
-    groupByPageAction->setCheckable(true);
-    connect(groupByPageAction, &QAction::toggled, this, &Reviews::slotPageEnabled);
-    groupByPageAction->setChecked(Okular::Settings::groupByPage());
-    // - add Author button
-    QAction *groupByAuthorAction = toolBar->addAction(QIcon::fromTheme(QStringLiteral("user-identity")), i18n("Group by Author"));
-    groupByAuthorAction->setCheckable(true);
-    connect(groupByAuthorAction, &QAction::toggled, this, &Reviews::slotAuthorEnabled);
-    groupByAuthorAction->setChecked(Okular::Settings::groupByAuthor());
-
-    // - add separator
-    toolBar->addSeparator();
     // - add Current Page Only button
     QAction *curPageOnlyAction = toolBar->addAction(QIcon::fromTheme(QStringLiteral("arrow-down")), i18n("Show annotations for current page only"));
     curPageOnlyAction->setCheckable(true);
@@ -193,24 +244,6 @@ void Reviews::reparseConfig()
 }
 
 // BEGIN GUI Slots -> requestListViewUpdate
-void Reviews::slotPageEnabled(bool on)
-{
-    // store toggle state in Settings and update the listview
-    Okular::Settings::setGroupByPage(on);
-    m_groupProxy->groupByPage(on);
-
-    m_view->expandAll();
-}
-
-void Reviews::slotAuthorEnabled(bool on)
-{
-    // store toggle state in Settings and update the listview
-    Okular::Settings::setGroupByAuthor(on);
-    m_authorProxy->groupByAuthor(on);
-
-    m_view->expandAll();
-}
-
 void Reviews::slotCurrentPageOnly(bool on)
 {
     // store toggle state in Settings and update the listview
@@ -234,7 +267,7 @@ void Reviews::slotCollapseAll()
 void Reviews::activated(const QModelIndex &index)
 {
     const QModelIndex authorIndex = m_authorProxy->mapToSource(index);
-    const QModelIndex filterIndex = m_groupProxy->mapToSource(authorIndex);
+    const QModelIndex filterIndex = m_annotationListProxy->mapToSource(authorIndex);
     const QModelIndex annotIndex = m_filterProxy->mapToSource(filterIndex);
 
     Okular::Annotation *annotation = m_model->annotationForIndex(annotIndex);
@@ -279,6 +312,19 @@ QModelIndexList Reviews::retrieveAnnotations(const QModelIndex &idx) const
 
 void Reviews::contextMenuRequested(const QPoint pos)
 {
+    const QModelIndex clickedIndex = m_view->indexAt(pos);
+    if (clickedIndex.isValid() && !m_view->selectionModel()->isSelected(clickedIndex)) {
+        m_view->selectionModel()->select(clickedIndex, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+        m_view->setCurrentIndex(clickedIndex);
+    }
+
+    const bool authorGroup = m_authorProxy->isAuthorGroup(clickedIndex);
+    const QString author = authorGroup ? clickedIndex.data().toString() : QString();
+    const bool authorExpanded = authorGroup && m_view->isExpanded(clickedIndex);
+    if (authorGroup) {
+        m_view->setCurrentIndex(clickedIndex);
+    }
+
     AnnotationPopup popup(m_document, AnnotationPopup::SingleAnnotationMode, this);
     connect(&popup, &AnnotationPopup::openAnnotationWindow, this, &Reviews::openAnnotationWindow);
 
@@ -287,7 +333,7 @@ void Reviews::contextMenuRequested(const QPoint pos)
         const QModelIndexList annotations = retrieveAnnotations(index);
         for (const QModelIndex &idx : annotations) {
             const QModelIndex authorIndex = m_authorProxy->mapToSource(idx);
-            const QModelIndex filterIndex = m_groupProxy->mapToSource(authorIndex);
+            const QModelIndex filterIndex = m_annotationListProxy->mapToSource(authorIndex);
             const QModelIndex annotIndex = m_filterProxy->mapToSource(filterIndex);
             Okular::Annotation *annotation = m_model->annotationForIndex(annotIndex);
             if (annotation) {
@@ -297,7 +343,65 @@ void Reviews::contextMenuRequested(const QPoint pos)
         }
     }
 
-    popup.exec(m_view->viewport()->mapToGlobal(pos));
+    if (!clickedIndex.isValid() && indexes.isEmpty()) {
+        return;
+    }
+
+    QMenu menu(this);
+    QAction *renameAuthor = nullptr;
+    QAction *editFolder = nullptr;
+    QModelIndex clickedAnnotationIndex;
+    Okular::Annotation *clickedAnnotation = nullptr;
+
+    if (authorGroup) {
+        renameAuthor = menu.addAction(QIcon::fromTheme(QStringLiteral("edit-rename")), i18nc("@action:inmenu", "Rename"));
+        renameAuthor->setObjectName(QStringLiteral("rename_annotation_author"));
+        renameAuthor->setEnabled(m_document->canRenameAnnotationAuthor(author));
+        menu.addSeparator();
+    } else {
+        const QModelIndex sourceIndex = m_filterProxy->mapToSource(m_annotationListProxy->mapToSource(m_authorProxy->mapToSource(clickedIndex)));
+        clickedAnnotation = m_model->annotationForIndex(sourceIndex);
+        if (clickedAnnotation) {
+            clickedAnnotationIndex = sourceIndex;
+            editFolder = menu.addAction(QIcon::fromTheme(QStringLiteral("folder")), i18nc("@action:inmenu", "Change Folder"));
+            editFolder->setObjectName(QStringLiteral("edit_annotation_folder"));
+            editFolder->setEnabled(m_model->canChangeAnnotationAuthor(clickedAnnotationIndex));
+            menu.addSeparator();
+        } else if (clickedIndex.isValid()) {
+            popup.exec(m_view->viewport()->mapToGlobal(pos));
+            return;
+        }
+    }
+
+    popup.addActionsToMenu(&menu);
+    QAction *selectedAction = menu.exec(m_view->viewport()->mapToGlobal(pos));
+    if (selectedAction == renameAuthor) {
+        bool accepted = false;
+        const QString newAuthor = QInputDialog::getText(this, i18nc("@title:window", "Rename"), i18nc("@label:textbox", "Name:"), QLineEdit::Normal, author, &accepted).trimmed();
+        if (accepted && !newAuthor.isEmpty() && m_document->renameAnnotationAuthor(author, newAuthor)) {
+            for (int row = 0; row < m_authorProxy->rowCount(QModelIndex()); ++row) {
+                const QModelIndex renamedIndex = m_authorProxy->index(row, 0);
+                if (renamedIndex.data().toString() == newAuthor) {
+                    m_view->setCurrentIndex(renamedIndex);
+                    m_view->setExpanded(renamedIndex, authorExpanded || m_view->isExpanded(renamedIndex));
+                    m_view->scrollTo(renamedIndex);
+                    break;
+                }
+            }
+        }
+    } else if (selectedAction == editFolder) {
+        bool accepted = false;
+        const QString folder = QInputDialog::getText(this,
+                                                     i18nc("@title:window", "Change Folder"),
+                                                     i18nc("@label:textbox", "Folder:"),
+                                                     QLineEdit::Normal,
+                                                     clickedAnnotation->author(),
+                                                     &accepted)
+                                 .trimmed();
+        if (accepted) {
+            m_model->changeAnnotationAuthor(clickedAnnotationIndex, folder);
+        }
+    }
 }
 
 void Reviews::saveSearchOptions()
@@ -318,7 +422,7 @@ public:
     }
     QString indexToConfigString(const QModelIndex &index) const override
     {
-        // Store the display text, with parent if any, e.g. "Page 4 / David Faure"
+        // Store the display text, with parent if any, e.g. "Section / Annotation"
         QString key = index.data().toString();
         if (auto parent = index.parent(); parent.isValid()) {
             key.prepend(parent.data().toString() + QLatin1String(" / "));

@@ -150,7 +150,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
             </font>
            </property>
            <property name="text">
-            <string>Welcome to Okular</string>
+            <string>Welcome to MobiDoc</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignCenter</set>

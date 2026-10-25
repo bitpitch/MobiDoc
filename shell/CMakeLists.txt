@@ -21,10 +21,23 @@ set(okular_SRCS
 ki18n_wrap_ui(okular_SRCS
     welcomescreen.ui)
 
-file(GLOB ICONS_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/../icons/*-apps-okular.png")
-ecm_add_app_icon(okular_SRCS ICONS ${ICONS_SRCS})
+file(GLOB ICONS_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/../icons/*-apps-mobidoc.png")
+if(APPLE)
+    # Generate the bundle icon directly from the provided 512px PNG. This
+    # avoids depending on iconutil to validate an intermediate .iconset.
+    set(MOBIDOC_ICNS "${CMAKE_CURRENT_BINARY_DIR}/okular_SRCS.icns")
+    add_custom_command(OUTPUT "${MOBIDOC_ICNS}"
+        COMMAND /usr/bin/sips -s format icns "${CMAKE_CURRENT_SOURCE_DIR}/../icons/512-apps-mobidoc.png" --out "${MOBIDOC_ICNS}"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../icons/512-apps-mobidoc.png"
+        VERBATIM)
+    set_source_files_properties("${MOBIDOC_ICNS}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    list(APPEND okular_SRCS "${MOBIDOC_ICNS}")
+else()
+    ecm_add_app_icon(okular_SRCS ICONS ${ICONS_SRCS})
+endif()
 
 add_executable(okular ${okular_SRCS})
+set_target_properties(okular PROPERTIES OUTPUT_NAME MobiDoc)
 
 target_link_libraries(okular KF6::I18n KF6::Parts KF6::WindowSystem KF6::Crash KF6::IconThemes KF6::KIOGui)
 if (TARGET Qt6::DBus)
@@ -38,18 +51,18 @@ install(TARGETS okular ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
 
 if(APPLE)
     set_target_properties(okular PROPERTIES
-        MACOSX_BUNDLE_DISPLAY_NAME "Okular"
-        MACOSX_BUNDLE_BUNDLE_NAME "Okular"
+        MACOSX_BUNDLE_DISPLAY_NAME "MobiDoc"
+        MACOSX_BUNDLE_BUNDLE_NAME "MobiDoc"
         MACOSX_BUNDLE_ICON_FILE "okular_SRCS"
-        MACOSX_BUNDLE_LONG_VERSION_STRING "Okular ${RELEASE_SERVICE_VERSION}"
+        MACOSX_BUNDLE_LONG_VERSION_STRING "MobiDoc ${RELEASE_SERVICE_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${RELEASE_SERVICE_VERSION_MAJOR}.${RELEASE_SERVICE_VERSION_MINOR}"
         MACOSX_BUNDLE_BUNDLE_VERSION "${RELEASE_SERVICE_VERSION}"
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/MacOSXBundleInfo.plist.in"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "org.kde.okular"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.mobicod.mobidoc"
         MACOSX_BUNDLE_COPYRIGHT "2002-2026 The Okular Developers")
 endif()
 
 # okular shell data files
 
-install( PROGRAMS org.kde.okular.desktop  DESTINATION  ${KDE_INSTALL_APPDIR} )
-install( FILES org.kde.okular.appdata.xml DESTINATION  ${KDE_INSTALL_METAINFODIR} )
+install( PROGRAMS com.mobicod.mobidoc.desktop DESTINATION ${KDE_INSTALL_APPDIR} )
+install( FILES com.mobicod.mobidoc.metainfo.xml DESTINATION ${KDE_INSTALL_METAINFODIR} )

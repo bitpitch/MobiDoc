@@ -37,8 +37,8 @@ QString find(const QString &serializedOptions);
 QString editorCmd(const QString &serializedOptions);
 
 #if HAVE_DBUS
-// Must be a subname of "org.kde.okular" due to Flatpak not supporting wildcard D-Bus permissions.
-inline constexpr QLatin1StringView kPerProcessDbusPrefix("org.kde.okular.Instance_");
+// Keep per-process service names under MobiDoc's own D-Bus namespace.
+inline constexpr QLatin1StringView kPerProcessDbusPrefix("com.mobicod.mobidoc.Instance_");
 
 QString currentProcessDbusName();
 #endif // HAVE_DBUS

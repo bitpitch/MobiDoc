@@ -80,6 +80,16 @@ ecm_add_test(annotationstest.cpp
 )
 
 if(BUILD_DESKTOP)
+    ecm_add_test(annotationauthordragtest.cpp
+        ../part/annotationmodel.cpp
+        ../part/annotationproxymodels.cpp
+        ../part/side_reviews.cpp
+        ../part/ktreeviewsearchline.cpp
+        ../gui/guiutils.cpp
+        TEST_NAME "annotationauthordragtest"
+        LINK_LIBRARIES Qt6::Widgets Qt6::Test Qt6::Xml okularcore okularpart
+    )
+
     ecm_add_test(annotationclipboardtest.cpp
         TEST_NAME "annotationclipboardtest"
         LINK_LIBRARIES Qt6::Widgets Qt6::Test Qt6::Xml okularcore okularpart

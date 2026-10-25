@@ -38,6 +38,10 @@ public:
 
     bool isAnnotation(const QModelIndex &index) const;
     Okular::Annotation *annotationForIndex(const QModelIndex &index) const;
+    bool canChangeAnnotationAuthor(const QModelIndex &index) const;
+    bool changeAnnotationAuthor(const QModelIndex &index, const QString &author);
+    bool canChangeAnnotationAuthors(const QModelIndexList &indexes) const;
+    bool changeAnnotationAuthors(const QModelIndexList &indexes, const QString &author);
 
 private:
     // storage

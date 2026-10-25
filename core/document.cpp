@@ -38,6 +38,7 @@
 #include <QPageSize>
 #include <QPrintDialog>
 #include <QRegularExpression>
+#include <QSet>
 #include <QScreen>
 #include <QStack>
 #include <QStandardPaths>
@@ -3652,6 +3653,83 @@ void Document::modifyPageAnnotationProperties(int page, Annotation *annotation)
     d->m_prevPropsOfAnnotBeingModified.clear();
 }
 
+bool Document::changePageAnnotationsAuthor(int page, const QStringList &annotationUniqueNames, const QString &author)
+{
+    if (page < 0 || page >= d->m_pagesVector.size() || annotationUniqueNames.isEmpty()) {
+        return false;
+    }
+
+    QList<Annotation *> annotations;
+    QSet<QString> seenNames;
+    Page *documentPage = d->m_pagesVector.at(page);
+    for (const QString &uniqueName : annotationUniqueNames) {
+        if (uniqueName.isEmpty() || seenNames.contains(uniqueName)) {
+            return false;
+        }
+        seenNames.insert(uniqueName);
+
+        Annotation *annotation = documentPage->annotation(uniqueName);
+        if (!annotation || !canModifyPageAnnotation(annotation) || annotation->author() == author) {
+            return false;
+        }
+        annotations.append(annotation);
+    }
+
+    d->m_undoStack->beginMacro(i18n("Move annotations to another author"));
+    for (Annotation *annotation : std::as_const(annotations)) {
+        prepareToModifyAnnotationProperties(annotation);
+        annotation->setAuthor(author);
+        modifyPageAnnotationProperties(page, annotation);
+    }
+    d->m_undoStack->endMacro();
+    return true;
+}
+
+bool Document::canRenameAnnotationAuthor(const QString &author) const
+{
+    bool found = false;
+    for (const Page *page : std::as_const(d->m_pagesVector)) {
+        for (const Annotation *annotation : page->annotations()) {
+            // Form widgets are not part of the annotations tree.
+            if (annotation->subType() == Annotation::AWidget || annotation->author() != author) {
+                continue;
+            }
+            if (!canModifyPageAnnotation(annotation)) {
+                return false;
+            }
+            found = true;
+        }
+    }
+    return found;
+}
+
+bool Document::renameAnnotationAuthor(const QString &author, const QString &newAuthor)
+{
+    if (newAuthor.trimmed().isEmpty() || author == newAuthor || !canRenameAnnotationAuthor(author)) {
+        return false;
+    }
+
+    // Capture every annotation before editing: observers rebuild the author
+    // groups after each change, so their model indexes cannot be retained.
+    QList<QPair<int, Annotation *>> annotations;
+    for (int page = 0; page < d->m_pagesVector.size(); ++page) {
+        for (Annotation *annotation : d->m_pagesVector.at(page)->annotations()) {
+            if (annotation->subType() != Annotation::AWidget && annotation->author() == author) {
+                annotations.append(qMakePair(page, annotation));
+            }
+        }
+    }
+
+    d->m_undoStack->beginMacro(i18n("Rename annotation author"));
+    for (const auto &entry : std::as_const(annotations)) {
+        prepareToModifyAnnotationProperties(entry.second);
+        entry.second->setAuthor(newAuthor);
+        modifyPageAnnotationProperties(entry.first, entry.second);
+    }
+    d->m_undoStack->endMacro();
+    return true;
+}
+
 void Document::translatePageAnnotation(int page, Annotation *annotation, const NormalizedPoint &delta)
 {
     int complete = (annotation->flags() & Okular::Annotation::BeingMoved) == 0;
@@ -5089,17 +5167,30 @@ bool Document::swapBackingFile(const QString &newFileName, const QUrl &url)
             }
 
             // Update the undo stack contents
-            for (int i = 0; i < d->m_undoStack->count(); ++i) {
-                // Trust me on the const_cast ^_^
-                QUndoCommand *uc = const_cast<QUndoCommand *>(d->m_undoStack->command(i));
-                if (OkularUndoCommand *ouc = dynamic_cast<OkularUndoCommand *>(uc)) {
-                    const bool success = ouc->refreshInternalPageReferences(newPagesVector);
-                    if (!success) {
+            // QUndoStack::beginMacro() creates a plain QUndoCommand container.
+            // Its children still hold annotation/page pointers and need the
+            // same refresh as commands stored directly on the stack.
+            const auto refreshCommand = [&](const auto &self, QUndoCommand *command) -> bool {
+                if (auto *ouc = dynamic_cast<OkularUndoCommand *>(command)) {
+                    if (!ouc->refreshInternalPageReferences(newPagesVector)) {
                         qWarning() << "Document::swapBackingFile: refreshInternalPageReferences failed" << ouc;
                         return false;
                     }
-                } else {
-                    qWarning() << "Document::swapBackingFile: Unhandled undo command" << uc;
+                } else if (command->childCount() == 0) {
+                    qWarning() << "Document::swapBackingFile: Unhandled undo command" << command;
+                    return false;
+                }
+                for (int child = 0; child < command->childCount(); ++child) {
+                    if (!self(self, const_cast<QUndoCommand *>(command->child(child)))) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+            for (int i = 0; i < d->m_undoStack->count(); ++i) {
+                // Trust me on the const_cast ^_^
+                QUndoCommand *uc = const_cast<QUndoCommand *>(d->m_undoStack->command(i));
+                if (!refreshCommand(refreshCommand, uc)) {
                     return false;
                 }
             }

@@ -24,7 +24,7 @@ class Document;
 class AnnotationModel;
 class AuthorGroupProxyModel;
 class PageFilterProxyModel;
-class PageGroupProxyModel;
+class AnnotationListProxyModel;
 class KTreeViewSearchLine;
 class TreeView;
 
@@ -46,8 +46,6 @@ public:
     QAbstractItemModel *annotationsModel() const;
 
 public Q_SLOTS:
-    void slotPageEnabled(bool);
-    void slotAuthorEnabled(bool);
     void slotCurrentPageOnly(bool);
     void slotExpandAll();
     void slotCollapseAll();
@@ -74,7 +72,7 @@ private:
     AnnotationModel *m_model;
     AuthorGroupProxyModel *m_authorProxy;
     PageFilterProxyModel *m_filterProxy;
-    PageGroupProxyModel *m_groupProxy;
+    AnnotationListProxyModel *m_annotationListProxy;
 };
 
 #endif

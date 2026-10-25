@@ -29,6 +29,7 @@
 #include <QGestureEvent>
 #include <QImage>
 #include <QInputDialog>
+#include <QLineEdit>
 #include <QLoggingCategory>
 #include <QMenu>
 #include <QMimeData>
@@ -39,6 +40,7 @@
 #include <QScroller>
 #include <QScrollerProperties>
 #include <QSet>
+#include <QStringList>
 #include <QTimer>
 #include <QToolTip>
 
@@ -2922,9 +2924,6 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
         menu.setObjectName(QStringLiteral("PopupMenu"));
         QAction *textToClipboard = nullptr;
         QAction *textWithoutLineBreaksToClipboard = nullptr;
-#if HAVE_SPEECH
-        const QAction *speakText = nullptr;
-#endif
         const QAction *imageToClipboard = nullptr;
         const QAction *imageToFile = nullptr;
         if (d->document->supportsSearching() && !selectedText.isEmpty()) {
@@ -2940,11 +2939,6 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
                 textWithoutLineBreaksToClipboard->setEnabled(false);
                 textWithoutLineBreaksToClipboard->setText(i18n("Copy forbidden by DRM"));
             }
-#if HAVE_SPEECH
-            if (Okular::Settings::useTTS()) {
-                speakText = menu.addAction(QIcon::fromTheme(QStringLiteral("text-speak")), i18n("Speak Text"));
-            }
-#endif
             if (copyAllowed) {
                 addSearchWithinDocumentAction(&menu, selectedText);
                 addWebShortcutsMenu(&menu, selectedText);
@@ -3009,12 +3003,6 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
                         cb->setText(Okular::removeLineBreaks(selectedText), QClipboard::Selection);
                     }
                 }
-#if HAVE_SPEECH
-                else if (choice == speakText) {
-                    // [2] speech selection using TTS
-                    d->tts()->say(selectedText);
-                }
-#endif
             }
         }
         // clear widget selection and invalidate rect
@@ -3142,9 +3130,6 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
                 AnnotationPopup annotPopup(d->document, AnnotationPopup::MultiAnnotationMode, this);
                 // Do not move annotPopup inside a conditional, it needs to live until menu->exec()
                 addAnnotationActionsForPoint(annotPopup, item, eventPos, &menu);
-#if HAVE_SPEECH
-                const QAction *speakText = nullptr;
-#endif
                 if (item->page()->textSelection()) {
                     if (!menu) {
                         menu = new QMenu(this);
@@ -3152,11 +3137,6 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
                     textToClipboard = menu->addAction(QIcon::fromTheme(QStringLiteral("edit-copy")), i18n("Copy Text"));
                     textWithoutLineBreaksToClipboard = menu->addAction(QIcon::fromTheme(QStringLiteral("edit-copy-without-line-breaks")), i18n("Copy Text (Without line breaks)"));
 
-#if HAVE_SPEECH
-                    if (Okular::Settings::useTTS()) {
-                        speakText = menu->addAction(QIcon::fromTheme(QStringLiteral("text-speak")), i18n("Speak Text"));
-                    }
-#endif
                     if (!d->document->isAllowed(Okular::AllowCopy)) {
                         textToClipboard->setEnabled(false);
                         textToClipboard->setText(i18n("Copy forbidden by DRM"));
@@ -3188,11 +3168,6 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
                             copyTextSelection(TextCopyMode::AsProvided);
                         } else if (choice == textWithoutLineBreaksToClipboard) {
                             copyTextSelection(TextCopyMode::WithoutLineBreaks);
-#if HAVE_SPEECH
-                        } else if (choice == speakText) {
-                            const QString text = d->selectedText();
-                            d->tts()->say(text);
-#endif
                         } else if (choice == httpLink) {
                             auto *job = new KIO::OpenUrlJob(QUrl(url));
                             job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, this));
@@ -4611,6 +4586,57 @@ bool PageView::addAnnotationActionsForPoint(AnnotationPopup &annotPopup, PageVie
         *menu = new QMenu(this);
     }
     annotPopup.addActionsToMenu(*menu);
+
+    QStringList pageAnnotationNames;
+    QString currentFolder;
+    bool mixedFolders = false;
+    bool canChangePageFolder = true;
+    for (Okular::Annotation *annotation : pageItem->page()->annotations()) {
+        if (!annotation || annotation->subType() == Okular::Annotation::AWidget) {
+            continue;
+        }
+        pageAnnotationNames.append(annotation->uniqueName());
+        if (pageAnnotationNames.size() == 1) {
+            currentFolder = annotation->author();
+        } else if (annotation->author() != currentFolder) {
+            mixedFolders = true;
+        }
+        canChangePageFolder = canChangePageFolder && d->document->canModifyPageAnnotation(annotation);
+    }
+
+    if (!pageAnnotationNames.isEmpty()) {
+        QAction *changePageFolder = (*menu)->addAction(QIcon::fromTheme(QStringLiteral("folder")), i18nc("@action:inmenu", "Change Folder for Page"));
+        changePageFolder->setObjectName(QStringLiteral("change_page_annotation_folder"));
+        changePageFolder->setEnabled(canChangePageFolder);
+        const int pageNumber = pageItem->pageNumber();
+        connect(changePageFolder, &QAction::triggered, this, [this, pageNumber, currentFolder, mixedFolders] {
+            bool accepted = false;
+            const QString folder = QInputDialog::getText(this,
+                                                         i18nc("@title:window", "Change Folder for Page"),
+                                                         i18nc("@label:textbox", "Folder:"),
+                                                         QLineEdit::Normal,
+                                                         mixedFolders ? QString() : currentFolder,
+                                                         &accepted)
+                                     .trimmed();
+            if (!accepted) {
+                return;
+            }
+
+            const Okular::Page *page = d->document->page(pageNumber);
+            if (!page) {
+                return;
+            }
+            QStringList annotationsToChange;
+            for (Okular::Annotation *annotation : page->annotations()) {
+                if (annotation && annotation->subType() != Okular::Annotation::AWidget && annotation->author() != folder) {
+                    annotationsToChange.append(annotation->uniqueName());
+                }
+            }
+            if (!annotationsToChange.isEmpty()) {
+                d->document->changePageAnnotationsAuthor(pageNumber, annotationsToChange, folder);
+            }
+        });
+    }
     return true;
 }
 

@@ -1,65 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
 <component type="desktop">
-  <id>org.kde.okular.desktop</id>
+  <id>com.mobicod.mobidoc.desktop</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-2.0+ and GFDL-1.3</project_license>
-  <name>Okular</name>
-  <name xml:lang="ar">اوكلار</name>
-  <name xml:lang="ast">Okular</name>
-  <name xml:lang="az">Okular</name>
-  <name xml:lang="be">Okular</name>
-  <name xml:lang="bg">Okular</name>
-  <name xml:lang="ca">Okular</name>
-  <name xml:lang="ca-valencia">Okular</name>
-  <name xml:lang="cs">Okular</name>
-  <name xml:lang="da">Okular</name>
-  <name xml:lang="de">Okular</name>
-  <name xml:lang="el">Okular</name>
-  <name xml:lang="en-GB">Okular</name>
-  <name xml:lang="eo">Okular</name>
-  <name xml:lang="es">Okular</name>
-  <name xml:lang="et">Okular</name>
-  <name xml:lang="eu">Okular</name>
-  <name xml:lang="fi">Okular</name>
-  <name xml:lang="fr">Okular</name>
-  <name xml:lang="ga">Okular</name>
-  <name xml:lang="gl">Okular</name>
-  <name xml:lang="he">Okular</name>
-  <name xml:lang="hi">ऑकुलर</name>
-  <name xml:lang="hu">Okular</name>
-  <name xml:lang="ia">Okular</name>
-  <name xml:lang="id">Okular</name>
-  <name xml:lang="ie">Okular</name>
-  <name xml:lang="is">Okular</name>
-  <name xml:lang="it">Okular</name>
-  <name xml:lang="ka">Okular</name>
-  <name xml:lang="ko">Okular</name>
-  <name xml:lang="lt">Okular</name>
-  <name xml:lang="lv">Okular</name>
-  <name xml:lang="nl">Okular</name>
-  <name xml:lang="nn">Okular</name>
-  <name xml:lang="pa">ਓਕੁਲਾਰ</name>
-  <name xml:lang="pl">Okular</name>
-  <name xml:lang="pt">Okular</name>
-  <name xml:lang="pt-BR">Okular</name>
-  <name xml:lang="ro">Okular</name>
-  <name xml:lang="ru">Okular</name>
-  <name xml:lang="sa">नेत्रस्य</name>
-  <name xml:lang="sk">Okular</name>
-  <name xml:lang="sl">Okular</name>
-  <name xml:lang="sr">Окулар</name>
-  <name xml:lang="sr-Latn">Okular</name>
-  <name xml:lang="sr-ijekavian">Окулар</name>
-  <name xml:lang="sr-ijekavianlatin">Okular</name>
-  <name xml:lang="sv">Okular</name>
-  <name xml:lang="ta">ஆக்குலர்</name>
-  <name xml:lang="tr">Okular</name>
-  <name xml:lang="ug">Okular پۈتۈك كۆرگۈچ</name>
-  <name xml:lang="uk">Okular</name>
-  <name xml:lang="vi">Okular</name>
-  <name xml:lang="zh-CN">Okular 文档查看器</name>
-  <name xml:lang="zh-TW">Okular</name>
-  <summary>View and annotate documents</summary>
+  <name>MobiDoc</name>
+  <name xml:lang="ar">MobiDoc</name>
+  <name xml:lang="ast">MobiDoc</name>
+  <name xml:lang="az">MobiDoc</name>
+  <name xml:lang="be">MobiDoc</name>
+  <name xml:lang="bg">MobiDoc</name>
+  <name xml:lang="ca">MobiDoc</name>
+  <name xml:lang="ca-valencia">MobiDoc</name>
+  <name xml:lang="cs">MobiDoc</name>
+  <name xml:lang="da">MobiDoc</name>
+  <name xml:lang="de">MobiDoc</name>
+  <name xml:lang="el">MobiDoc</name>
+  <name xml:lang="en-GB">MobiDoc</name>
+  <name xml:lang="eo">MobiDoc</name>
+  <name xml:lang="es">MobiDoc</name>
+  <name xml:lang="et">MobiDoc</name>
+  <name xml:lang="eu">MobiDoc</name>
+  <name xml:lang="fi">MobiDoc</name>
+  <name xml:lang="fr">MobiDoc</name>
+  <name xml:lang="ga">MobiDoc</name>
+  <name xml:lang="gl">MobiDoc</name>
+  <name xml:lang="he">MobiDoc</name>
+  <name xml:lang="hi">MobiDoc</name>
+  <name xml:lang="hu">MobiDoc</name>
+  <name xml:lang="ia">MobiDoc</name>
+  <name xml:lang="id">MobiDoc</name>
+  <name xml:lang="ie">MobiDoc</name>
+  <name xml:lang="is">MobiDoc</name>
+  <name xml:lang="it">MobiDoc</name>
+  <name xml:lang="ka">MobiDoc</name>
+  <name xml:lang="ko">MobiDoc</name>
+  <name xml:lang="lt">MobiDoc</name>
+  <name xml:lang="lv">MobiDoc</name>
+  <name xml:lang="nl">MobiDoc</name>
+  <name xml:lang="nn">MobiDoc</name>
+  <name xml:lang="pa">MobiDoc</name>
+  <name xml:lang="pl">MobiDoc</name>
+  <name xml:lang="pt">MobiDoc</name>
+  <name xml:lang="pt-BR">MobiDoc</name>
+  <name xml:lang="ro">MobiDoc</name>
+  <name xml:lang="ru">MobiDoc</name>
+  <name xml:lang="sa">MobiDoc</name>
+  <name xml:lang="sk">MobiDoc</name>
+  <name xml:lang="sl">MobiDoc</name>
+  <name xml:lang="sr">MobiDoc</name>
+  <name xml:lang="sr-Latn">MobiDoc</name>
+  <name xml:lang="sr-ijekavian">MobiDoc</name>
+  <name xml:lang="sr-ijekavianlatin">MobiDoc</name>
+  <name xml:lang="sv">MobiDoc</name>
+  <name xml:lang="ta">MobiDoc</name>
+  <name xml:lang="tr">MobiDoc</name>
+  <name xml:lang="ug">MobiDoc</name>
+  <name xml:lang="uk">MobiDoc</name>
+  <name xml:lang="vi">MobiDoc</name>
+  <name xml:lang="zh-CN">MobiDoc</name>
+  <name xml:lang="zh-TW">MobiDoc</name>
+  <summary>View and annotate documents with MobiDoc by Mobicod</summary>
   <summary xml:lang="ar">يعرض المستندات و يستطيع وضع الشروح عليها</summary>
   <summary xml:lang="az">Sənədləri gözdən keçirin və qeydinizi yazın</summary>
   <summary xml:lang="be">Прагляд і анатаванне дакументаў</summary>
@@ -101,7 +101,7 @@
   <summary xml:lang="zh-TW">檢視或註記文件</summary>
   <description>
     <p>
-   Okular is a universal document viewer developed by KDE. Okular works on multiple platforms, including but not limited to Linux, Windows, macOS, *BSD, etc.
+   MobiDoc is an independent document viewer developed by Mobicod and based on Okular, the document viewer project developed by KDE. MobiDoc retains the original Okular license and copyright notices.
   </p>
     <p xml:lang="ar">اوكلار هو عارض مستندات عالمي مطور بواسطة كِيدِي. يعمل اوكلار على أنظمة أساسية متعددة، بما في ذلك على سبيل المثال لا الحصر لينكس و ويندوز و ماك أو أس و * BSD وما إلى ذلك.</p>
     <p xml:lang="bg">Okular е универсално приложение за преглед на документи, разработено от KDE. Okular работи на множество платформи, включително, но не само, Linux, Windows, macOS, *BSD и др.</p>
@@ -113,7 +113,7 @@
     <p xml:lang="fr">Okular est un afficheur universel de documents développé par KDE. Okular fonctionne sur de multiples plate-formes, dont Linux, Windows, macOS, *BSD, etc.</p>
     <p xml:lang="he">Okular הוא מציג מסמכים אוניברסלי שפותח על ידי KDE.‏ Okular תומך במגוון פלטפורמות, כולל לינוקס, Windows,‏ macOS, מגוון סוגי BSD ועוד.</p>
     <p xml:lang="ia">Okular es un visor universal de documento disveloppate per KDE. Okular functiona sur platteformas multiple includente sed non limitate a Linux, Windows, macOS, *BSD, etc.</p>
-    <p xml:lang="it">Okular è un lettore universale di documenti sviluppato da KDE. Okular funziona su varie piattaforme, incluse (ma non solo) Linux, Windows, macOS, *BSD, ecc.</p>
+    <p xml:lang="it">MobiDoc è un visualizzatore di documenti sviluppato da Mobicod sulla base di Okular, il progetto KDE per la visualizzazione di documenti. MobiDoc conserva le licenze e gli avvisi di copyright originali di Okular.</p>
     <p xml:lang="ka">Okular დოკუმენტების უნივერსალური დამთვალიერებელია KDE-სგან. Okular ბევრ პლატფორმაზე მუშაობს. მაგ: Linux, Windows, Mac OS X, *BSD და სხვა.</p>
     <p xml:lang="ko">Okular는 만능 문서 뷰어입니다. Okular는 리눅스, macOS, Windows, *BSD 등 여러 플랫폼에서 동작합니다.</p>
     <p xml:lang="lt">Okular yra universali, KDE plėtojama dokumentų žiūryklė. Okular veikia keliose platformose, įskaitant, tačiau neapsiribojant Linux, Windows, macOS, *BSD ir t.t.</p>
@@ -385,14 +385,13 @@
       <image>https://cdn.kde.org/screenshots/okular/okular.png</image>
     </screenshot>
   </screenshots>
-  <developer id="org.kde">
-    <name>KDE</name>
-    <url>https://kde.org</url>
+  <developer id="com.mobicod">
+    <name>Mobicod</name>
+    <url>https://www.mobicod.com</url>
   </developer>
-  <url type="homepage">https://okular.kde.org/</url>
+  <url type="homepage">https://www.mobicod.com</url>
   <url type="bugtracker">https://bugs.kde.org/enter_bug.cgi?format=guided&amp;product=okular</url>
   <url type="help">https://docs.kde.org/?application=okular</url>
-  <url type="donation">https://www.kde.org/community/donations/?app=okular&amp;source=appdata</url>
   <url type="translate">https://community.kde.org/Get_Involved/translation</url>
   <url type="vcs-browser">https://invent.kde.org/graphics/okular</url>
   <url type="contribute">https://community.kde.org/Get_Involved</url>
@@ -400,9 +399,9 @@
     <color type="primary" scheme_preference="light">#4ba2ff</color>
     <color type="primary" scheme_preference="dark">#1363b3</color>
   </branding>
-  <project_group>KDE</project_group>
+  <project_group>Mobicod</project_group>
   <provides>
-    <binary>okular</binary>
+    <binary>MobiDoc</binary>
   </provides>
   <content_rating type="oars-1.1"/>
   <custom>
@@ -411,7 +410,7 @@
     <value key="KDE::mailinglist-devel">okular-devel@kde.org</value>
     <value key="KDE::forum">251</value>
   </custom>
-  <launchable type="desktop-id">org.kde.okular.desktop</launchable>
+  <launchable type="desktop-id">com.mobicod.mobidoc.desktop</launchable>
   <releases>
     <release version="26.08.2" date="2026-10-08"/>
     <release version="26.08.1" date="2026-09-10"/>
