@@ -9,19 +9,68 @@
 #include <qpdf/QPDFPageDocumentHelper.hh>
 #include <qpdf/QPDFWriter.hh>
 
+#include <QFile>
+
+#ifdef Q_OS_WIN
+#include <fcntl.h>
+#include <io.h>
+#include <windows.h>
+#endif
+
+#include <cstdio>
 #include <functional>
 #include <map>
+#include <memory>
 #include <set>
 #include <stdexcept>
 
 static_assert(QPDF_MAJOR_VERSION >= 11, "PDF bookmark editing requires QPDF 11 or newer");
 
+#ifdef Q_OS_WIN
+static std::unique_ptr<FILE, decltype(&std::fclose)> openQFileHandleForQpdf(QFile &file, bool write)
+{
+    HANDLE duplicate = nullptr;
+    const intptr_t nativeHandle = _get_osfhandle(file.handle());
+    const HANDLE original = reinterpret_cast<HANDLE>(nativeHandle);
+    if (nativeHandle == -1 ||
+        !DuplicateHandle(GetCurrentProcess(), original, GetCurrentProcess(), &duplicate, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
+        throw std::runtime_error("Could not duplicate a temporary PDF file handle for QPDF");
+    }
+
+    const int flags = (write ? _O_WRONLY : _O_RDONLY) | _O_BINARY;
+    const int descriptor = _open_osfhandle(reinterpret_cast<intptr_t>(duplicate), flags);
+    if (descriptor == -1) {
+        CloseHandle(duplicate);
+        throw std::runtime_error("Could not create a QPDF stream for a temporary PDF file");
+    }
+
+    FILE *stream = _fdopen(descriptor, write ? "wb" : "rb");
+    if (!stream) {
+        _close(descriptor);
+        throw std::runtime_error("Could not create a QPDF stream for a temporary PDF file");
+    }
+    return {stream, &std::fclose};
+}
+#endif
+
 void writePdfBookmarkTree(const char *input, const char *output, const char *password, const char *original, const char *originalPassword, const std::vector<PdfBookmarkNode> &tree)
 {
     using Object = QPDFObjectHandle;
     QPDF pdf, source;
+#ifdef Q_OS_WIN
+    QFile inputFile(QFile::decodeName(input));
+    QFile originalFile(QFile::decodeName(original));
+    if (!inputFile.open(QIODevice::ReadOnly) || !originalFile.open(QIODevice::ReadOnly)) {
+        throw std::runtime_error("Could not open a PDF file for saving bookmarks");
+    }
+    auto inputStream = openQFileHandleForQpdf(inputFile, false);
+    auto originalStream = openQFileHandleForQpdf(originalFile, false);
+    pdf.processFile(input, inputStream.get(), false, password);
+    source.processFile(original, originalStream.get(), false, originalPassword);
+#else
     pdf.processFile(input, password);
     source.processFile(original, originalPassword);
+#endif
     auto pages = QPDFPageDocumentHelper(pdf).getAllPages();
     auto oldPages = QPDFPageDocumentHelper(source).getAllPages();
     if (pages.size() != oldPages.size()) {
@@ -174,7 +223,16 @@ void writePdfBookmarkTree(const char *input, const char *output, const char *pas
     };
     root.replaceKey("/Count", Object::newInteger(link(tree, root)));
     pdf.getRoot().replaceKey("/Outlines", root);
+#ifdef Q_OS_WIN
+    QFile outputFile(QFile::decodeName(output));
+    if (!outputFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        throw std::runtime_error("Could not open a PDF output file for saving bookmarks");
+    }
+    auto outputStream = openQFileHandleForQpdf(outputFile, true);
+    QPDFWriter writer(pdf, output, outputStream.get(), false);
+#else
     QPDFWriter writer(pdf, output);
+#endif
     writer.setPreserveEncryption(true);
     writer.write();
 }

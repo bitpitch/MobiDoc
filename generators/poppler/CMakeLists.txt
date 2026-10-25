@@ -49,7 +49,7 @@ kde_target_enable_exceptions(okularGenerator_poppler PRIVATE)
 if(BUILD_TESTING)
     ecm_add_test(autotests/pdfbookmarkstest.cpp pdfbookmarks.cpp
         TEST_NAME pdfBookmarksTest
-        LINK_LIBRARIES qpdf::libqpdf
+        LINK_LIBRARIES Qt6::Core qpdf::libqpdf
     )
     target_compile_definitions(pdfBookmarksTest PRIVATE POINTERHOLDER_TRANSITION=4)
     kde_target_enable_exceptions(pdfBookmarksTest PRIVATE)
