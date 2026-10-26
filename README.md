@@ -1,8 +1,8 @@
 # MobiDoc – PDF Document Viewer
 
-MobiDoc is an open-source document viewer based on KDE Okular.
+MobiDoc is an open-source PDF reader based on KDE Okular.
 
-It supports PDF, PostScript, Comic Book, and various image formats, including native PDF annotations.
+It supports PDF, including native PDF annotations.
 
 MobiDoc extends the original document viewer with advanced PDF bookmark management, allowing users to create, edit, rename, delete, and organize hierarchical bookmarks directly within PDF documents.
 
