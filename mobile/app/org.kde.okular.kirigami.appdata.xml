@@ -380,8 +380,7 @@
     <category>Viewer</category>
   </categories>
   <url type="homepage">https://okular.kde.org/</url>
-  <url type="bugtracker">https://bugs.kde.org/enter_bug.cgi?format=guided&amp;product=okular</url>
-  <url type="donation">https://www.kde.org/community/donations/?app=okular&amp;source=appdata</url>
+  <url type="bugtracker">https://github.com/bitpitch/MobiDoc/issues/new/choose</url>
   <url type="translate">https://community.kde.org/Get_Involved/translation</url>
   <url type="vcs-browser">https://invent.kde.org/graphics/okular</url>
   <url type="contribute">https://community.kde.org/Get_Involved</url>

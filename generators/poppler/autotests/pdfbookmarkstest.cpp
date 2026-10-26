@@ -85,13 +85,14 @@ static std::vector<Object> rootItems(QPDF &pdf)
     return result;
 }
 
-static void checkExistingContent(QPDF &pdf)
+static void checkExistingContent(QPDF &pdf, const std::string &title = "Chapter", const std::string &childTitle = "Nested link")
 {
     auto items = rootItems(pdf);
-    require(items[0].getKey("/Title").getUTF8Value() == "Chapter", "Existing title changed");
+    require(items[0].getKey("/Title").getUTF8Value() == title, "Existing title changed");
     require(items[0].getKey("/F").getIntValue() == 2, "Existing bookmark formatting changed");
     require(items[0].getKey("/C").getArrayNItems() == 3, "Existing bookmark color changed");
     auto child = items[0].getKey("/First");
+    require(child.getKey("/Title").getUTF8Value() == childTitle, "Nested title changed");
     require(child.getKey("/Parent").isSameObjectAs(items[0]), "Nested parent changed");
     require(child.getKey("/A").getKey("/URI").getStringValue() == "https://example.org/", "Nested action lost");
     require(items[1].getKey("/Dest").getStringValue() == "chapter-two", "Named destination changed");
@@ -113,7 +114,8 @@ static void runTests(const std::filesystem::path &directory)
     const std::string title = "Segnalibro: caffè 日本語";
     const PdfBookmarkNode firstNew {"new:test-id-1", title, 1, true, {}};
     const PdfBookmarkNode secondNew {"new:test-id-2", "Another bookmark", 0, true, {}};
-    const std::vector<PdfBookmarkNode> originals = {{"pdf:0", "", -1, true, {{"pdf:0.0", "", -1, false, {}}}}, {"pdf:1", "", -1, false, {}}};
+    // The save model contains the current titles, including unchanged originals.
+    const std::vector<PdfBookmarkNode> originals = {{"pdf:0", "Chapter", -1, true, {{"pdf:0.0", "Nested link", -1, false, {}}}}, {"pdf:1", "Named destination", -1, false, {}}};
     auto tree = originals;
     tree.push_back(firstNew);
     tree.push_back(secondNew);
@@ -160,6 +162,42 @@ static void runTests(const std::filesystem::path &directory)
         auto items = rootItems(pdf);
         require(items.size() == 4, "Redo failed");
         require(items[2].getKey("/Title").getUTF8Value() == firstNew.title, "Redo changed bookmark order");
+    }
+
+    // Rename existing entries and retain destinations, formatting, nested actions,
+    // page contents and annotations across repeated saves, undo and redo.
+    const std::string renamedTitle = "Capitolo rinominato: caffè 日本語";
+    const std::string renamedChildTitle = "Collegamento rinominato: 日本語";
+    tree[0].title = renamedTitle;
+    tree[0].children[0].title = renamedChildTitle;
+    writePdfBookmarkTree(output.c_str(), savedAgain.c_str(), "", input.c_str(), "", tree);
+    {
+        QPDF pdf;
+        pdf.processFile(savedAgain.c_str());
+        checkExistingContent(pdf, renamedTitle, renamedChildTitle);
+    }
+    writePdfBookmarkTree(savedAgain.c_str(), output.c_str(), "", input.c_str(), "", tree);
+    {
+        QPDF pdf;
+        pdf.processFile(output.c_str());
+        require(rootItems(pdf).size() == 4, "Repeated rename save duplicated bookmarks");
+        checkExistingContent(pdf, renamedTitle, renamedChildTitle);
+    }
+    tree[0].title = originals[0].title;
+    tree[0].children[0].title = originals[0].children[0].title;
+    writePdfBookmarkTree(output.c_str(), undone.c_str(), "", input.c_str(), "", tree);
+    {
+        QPDF pdf;
+        pdf.processFile(undone.c_str());
+        checkExistingContent(pdf);
+    }
+    tree[0].title = renamedTitle;
+    tree[0].children[0].title = renamedChildTitle;
+    writePdfBookmarkTree(undone.c_str(), output.c_str(), "", input.c_str(), "", tree);
+    {
+        QPDF pdf;
+        pdf.processFile(output.c_str());
+        checkExistingContent(pdf, renamedTitle, renamedChildTitle);
     }
 
     // A PDF without an outline acquires its first bookmark, which can also be undone.

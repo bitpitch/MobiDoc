@@ -28,6 +28,14 @@
 #include <QTextStream>
 #include <QtGlobal>
 
+#ifdef Q_OS_MACOS
+#include "nativemenus_mac.h"
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <mach-o/dyld.h>
+#endif
+
 #define HAVE_STYLE_MANAGER __has_include(<KStyleManager>)
 #if HAVE_STYLE_MANAGER
 #include <KStyleManager>
@@ -74,7 +82,26 @@ int main(int argc, char **argv)
 
     QCoreApplication::setAttribute(Qt::AA_CompressTabletEvents);
 
+#ifdef Q_OS_MACOS
+    // Register bundled plugins before QApplication selects its platform plugin.
+    // This must also work when Qt's paths were queried before app initialization.
+    uint32_t executablePathSize = 0;
+    _NSGetExecutablePath(nullptr, &executablePathSize);
+    QByteArray executablePath(executablePathSize, '\0');
+    if (_NSGetExecutablePath(executablePath.data(), &executablePathSize) == 0) {
+        const QFileInfo executable(QFileInfo(QFile::decodeName(executablePath.constData())).canonicalFilePath());
+        const QString pluginPath = executable.absoluteDir().absoluteFilePath(QStringLiteral("../PlugIns"));
+        if (QDir(pluginPath).exists()) {
+            QCoreApplication::addLibraryPath(QDir::cleanPath(pluginPath));
+        }
+    }
+#endif
+
     QApplication app(argc, argv);
+
+#ifdef Q_OS_MACOS
+    installMobiDocNativeMenuFilter();
+#endif
 
     /**
      * Install event filter to handle macOS file opening.

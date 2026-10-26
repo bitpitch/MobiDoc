@@ -28,15 +28,19 @@
 #include <KActionCollection>
 #include <KActionMenu>
 #include <KConfigDialog>
+#include <KLocalizedString>
 #include <KParts/OpenUrlArguments>
 
 #include <QAbstractItemModelTester>
 #include <QApplication>
 #include <QClipboard>
 #include <QDesktopServices>
+#include <QImage>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
+#include <QPdfWriter>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QTabletEvent>
@@ -96,6 +100,8 @@ private Q_SLOTS:
     void testeTextSelectionOverAndAcrossLinks();
     void testClickUrlLinkWhileLinkTextIsSelected();
     void testRClickWhileLinkTextIsSelected();
+    void testPageContextMenu_data();
+    void testPageContextMenu();
     void testRClickOverLinkWhileLinkTextIsSelected();
     void testRClickOnSelectionModeShoulShowFollowTheLinkMenu();
     void testClickAnywhereAfterSelectionShouldUnselect();
@@ -757,6 +763,64 @@ void PartTest::testClickUrlLinkWhileLinkTextIsSelected()
     QTRY_COMPARE(openUrlSignalSpy.count(), 1);
     QList<QVariant> arguments = openUrlSignalSpy.takeFirst();
     QCOMPARE(arguments.at(0).value<QUrl>(), QUrl(QStringLiteral("mailto:foo@foo.bar")));
+}
+
+void PartTest::testPageContextMenu_data()
+{
+    QTest::addColumn<bool>("textSelectionMode");
+    QTest::addColumn<bool>("imagePage");
+    QTest::newRow("browse-text") << false << false;
+    QTest::newRow("text-selection-text") << true << false;
+    QTest::newRow("browse-image") << false << true;
+    QTest::newRow("text-selection-image") << true << true;
+}
+
+void PartTest::testPageContextMenu()
+{
+    QFETCH(bool, textSelectionMode);
+    QFETCH(bool, imagePage);
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = directory.filePath(QStringLiteral("context-menu.pdf"));
+    {
+        QPdfWriter writer(path);
+        QPainter painter(&writer);
+        QVERIFY(painter.isActive());
+        const QRect area(0, 0, writer.width(), writer.height());
+        if (imagePage) {
+            QImage image(32, 32, QImage::Format_RGB32);
+            image.fill(Qt::cyan);
+            painter.drawImage(area, image);
+        } else {
+            painter.drawText(area, Qt::AlignCenter, QStringLiteral("MobiDoc page context menu"));
+        }
+    }
+
+    Okular::Part part(nullptr, QVariantList());
+    QVERIFY(openDocument(&part, path));
+    part.widget()->resize(800, 600);
+    part.widget()->show();
+    QVERIFY(QTest::qWaitForWindowExposed(part.widget()));
+    QTRY_VERIFY(part.m_document->page(0)->hasPixmap(part.m_pageView));
+    QVERIFY(QMetaObject::invokeMethod(part.m_pageView, textSelectionMode ? "slotSetMouseTextSelect" : "slotSetMouseNormal"));
+
+    bool menuOpened = false;
+    bool hasAddBookmark = false;
+    QTimer closeMenu;
+    connect(&closeMenu, &QTimer::timeout, this, [&]() {
+        if (QMenu *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget())) {
+            menuOpened = true;
+            for (QAction *action : menu->actions()) {
+                hasAddBookmark |= action->text() == i18nd("okular", "Add Bookmark");
+            }
+            menu->close();
+        }
+    });
+    closeMenu.start(50);
+    QTest::mouseClick(part.m_pageView->viewport(), Qt::RightButton, Qt::NoModifier, part.m_pageView->viewport()->rect().center());
+    closeMenu.stop();
+    QVERIFY(menuOpened);
+    QVERIFY(hasAddBookmark);
 }
 
 // r-click on the selected text gives the "Go To:" content menu option

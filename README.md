@@ -20,7 +20,7 @@ Documentation for MobiDoc is currently under development.
 
 ### Bugs
 
-Please report bugs and feature requests through the MobiDoc repository.
+Please report bugs and feature requests through the [MobiDoc issue tracker](https://github.com/bitpitch/MobiDoc/issues/new/choose).
 
 ### Source code
 

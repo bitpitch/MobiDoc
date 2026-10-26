@@ -26,7 +26,8 @@ inline KAboutData okularAboutData()
                           "(C) 2004-2017 Albert Astals Cid\n"
                           "(C) 2006-2009 Pino Toscano"),
                      QString(),
-                     QStringLiteral("https://www.mobicod.com"));
+                     QStringLiteral("https://www.mobicod.com"),
+                     QStringLiteral("https://github.com/bitpitch/MobiDoc/issues/new/choose"));
 
     about.addCredit(i18n("Mobicod"), i18n("MobiDoc distribution and customizations"), QString(), QStringLiteral("https://www.mobicod.com"));
     about.addAuthor(i18n("Pino Toscano"), i18n("Former maintainer"), QStringLiteral("pino@kde.org"));

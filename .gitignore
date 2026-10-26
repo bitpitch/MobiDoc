@@ -1,46 +1,126 @@
-CMakeLists.txt.user*
-*.kdev4
-*.swp
-/build*/
-.cmake/
-
-# LSP & IDE
-/.clang-format
-/compile_commands.json
-.clangd
-.cache
-.idea
-.qtcreator
-/cmake-build*
-
-# Flatpak
-.flatpak-builder
-build-dir
-.DS_Store
-
-# Local macOS builds, downloaded dependencies and packaged applications
-/.build-macos/
-/dist/
-
-# Other local CMake builds and installation prefixes (including Windows)
-/.build*/
-/_build*/
+# Local build trees and installation/package output (macOS, Windows, Linux)
+build/
+build-*/
+build_*/
+.build*/
+_build*/
+cmake-build*/
 /out/
 /install/
-/CMakeCache.txt
-/CMakeFiles/
-/cmake_install.cmake
-/CTestTestfile.cmake
-/Testing/
-/_deps/
-/*.log
+/_install/
+/dist/
 
-# Visual Studio local workspace data
+# CMake, Ninja, CTest and generated Qt build files (including in-source builds)
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+CTestTestfile.cmake
+DartConfiguration.tcl
+install_manifest*.txt
+Testing/
+_deps/
+.cmake/
+build.ninja
+rules.ninja
+.ninja_deps
+.ninja_log
+compile_commands.json
+*_autogen/
+*_automoc.cpp
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+*.moc
+.rcc/
+/Makefile
+/Makefile.*
+/CPackConfig.cmake
+/CPackSourceConfig.cmake
+/_CPack_Packages/
+
+# Compiled binaries, libraries and debug symbols
+*.o
+*.obj
+*.a
+*.lib
+*.lo
+*.la
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.idb
+*.pch
+*.gch
+*.dSYM/
+*.app/
+
+# Generated installers and MobiDoc release archives; keep test/data archives
+*.dmg
+*.pkg
+*.msi
+*.msix
+*.AppImage
+/MobiDoc*.zip
+/MobiDoc*.7z
+/MobiDoc*.tar.*
+
+# Python, Gradle and local tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.ccache/
+.gradle/
+
+# Local editor/IDE state; formatting and build configuration remain trackable
+CMakeLists.txt.user*
+*.kdev4
+.idea/
+.qtcreator/
 .vs/
 CMakeSettings.json.user
-CMakeUserPresets.json
+*.suo
+*.VC.db
+*.VC.opendb
+*.sln.docstates
+*.vcxproj.user
+*.sln.DotSettings.user
+xcuserdata/
+*.xcuserstate
 
-# Windows Explorer metadata
+# Logs, temporary files and editor backups
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.rej
+/tmp/
+/temp/
+
+# Flatpak build state
+.flatpak-builder/
+build-dir/
+
+# macOS, Windows and Linux desktop metadata
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+.directory
+.nfs*
+.Trash-*/

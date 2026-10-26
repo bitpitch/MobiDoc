@@ -57,6 +57,10 @@ endif()
 install(TARGETS okular ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
 
 if(APPLE)
+    target_sources(okular PRIVATE nativemenus_mac.mm)
+    set_source_files_properties(nativemenus_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    find_library(MOBIDOC_APPKIT_FRAMEWORK AppKit REQUIRED)
+    target_link_libraries(okular ${MOBIDOC_APPKIT_FRAMEWORK})
     set_target_properties(okular PROPERTIES
         MACOSX_BUNDLE_DISPLAY_NAME "MobiDoc"
         MACOSX_BUNDLE_BUNDLE_NAME "MobiDoc"

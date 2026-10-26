@@ -893,12 +893,19 @@ void Shell::setActiveTab(int tab)
     // to save and restore it
     const bool isSidebarVisible = m_sidebar->isVisible();
     createGUI(m_tabs[tab].part);
-    // The inherited handbook and donation entries are not part of the MobiDoc UI.
-    // Remove them after each GUI merge, since switching tabs rebuilds the menu.
-    const QStringList excludedHelpActions{QStringLiteral("help_contents"), QStringLiteral("help_donate")};
+    // Remove inherited KDE actions after each GUI merge.
+    const QStringList excludedActions{QStringLiteral("help_contents"),
+                                      QStringLiteral("help_donate"),
+                                      QStringLiteral("help_about_kde"),
+                                      QStringLiteral("switch_application_language")};
+    KActionCollection *partActions = m_tabs[tab].part->actionCollection();
     for (QMenu *menu : menuBar()->findChildren<QMenu *>()) {
         for (QAction *action : menu->actions()) {
-            if (excludedHelpActions.contains(action->objectName())) {
+            if (excludedActions.contains(action->objectName())) {
+                action->setShortcuts({});
+                if (partActions->actions().contains(action)) {
+                    partActions->removeAction(action);
+                }
                 menu->removeAction(action);
             }
         }

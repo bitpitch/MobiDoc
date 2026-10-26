@@ -113,6 +113,7 @@ for index, line in enumerate(lines):
             '-DCMAKE_DISABLE_FIND_PACKAGE_Qt6Multimedia=ON',
             '-DCMAKE_DISABLE_FIND_PACKAGE_LibSpectre=ON',
             '-DMOBIDOC_PDF_ONLY=ON',
+            '-DOKULAR_UI=desktop',
         ]
         lines[index] = indentation + 'self.subinfo.options.configure.args += ' + repr(options) + '\n'
         break
@@ -307,6 +308,7 @@ with info.open('rb') as stream:
 metadata.update(CFBundleIdentifier='com.mobicod.mobidoc', CFBundleName='MobiDoc', CFBundleDisplayName='MobiDoc')
 with info.open('wb') as stream:
     plistlib.dump(metadata, stream)
+subprocess.run([sys.executable, str(project / 'scripts/trim-macos-bundle.py'), str(destination)], check=True)
 subprocess.run([sys.executable, str(project / 'scripts/audit-macos-pdf-bundle.py'), str(destination)], check=True)
 subprocess.run(['/usr/bin/codesign', '--force', '--deep', '--sign', '-', str(destination)], check=True)
 subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(destination)], check=True)

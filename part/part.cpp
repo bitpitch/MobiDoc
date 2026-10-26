@@ -3674,9 +3674,9 @@ bool Part::doPrint(QPrinter &printer)
     if (printError != Document::NoPrintError) {
         const QString error = Okular::Document::printErrorString(printError);
         if (error.isEmpty()) {
-            KMessageBox::error(widget(), i18n("Could not print the document. Unknown error. Please report to bugs.kde.org"));
+            KMessageBox::error(widget(), i18n("Could not print the document. Unknown error. Please report it at %1", QStringLiteral("https://github.com/bitpitch/MobiDoc/issues/new/choose")));
         } else {
-            KMessageBox::error(widget(), i18n("Could not print the document. Detailed error is \"%1\". Please report to bugs.kde.org", error));
+            KMessageBox::error(widget(), i18n("Could not print the document. Detailed error is \"%1\". Please report it at %2", error, QStringLiteral("https://github.com/bitpitch/MobiDoc/issues/new/choose")));
         }
         return false;
     }

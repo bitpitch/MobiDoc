@@ -8,6 +8,10 @@ set (RELEASE_SERVICE_VERSION "${RELEASE_SERVICE_VERSION_MAJOR}.${RELEASE_SERVICE
 
 project(okular VERSION ${RELEASE_SERVICE_VERSION})
 
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
+
 set(QT_REQUIRED_VERSION "6.8.0") # Remember to update the QT_DEPRECATED_WARNINGS_SINCE below
 set(KF_REQUIRED_VERSION "6.13.0") # Remember to update the KF_DEPRECATED_WARNINGS_SINCE below
 

@@ -521,7 +521,7 @@ QString Okular::errorString(SigningResult result, const QVariant &additionalMess
         return i18nc("signing error", "Signing certificate not found. If you are using a smartcard, it might have been removed or the signature store changed");
     case FieldAlreadySigned: // We should not end up here, code should have caught it earlier and not allowed signature
     case InternalSigningError:
-        return i18nc("%1 is a error code", "Internal signing error. Please report a bug with the steps to reproduce it. Error code %1", additionalMessage.toInt());
+        return i18nc("%1 is a error code", "Internal signing error. Please report a bug at https://github.com/bitpitch/MobiDoc/issues/new/choose with the steps to reproduce it. Error code %1", additionalMessage.toInt());
     case GenericSigningError:
         return xi18nc("%1 is a filename with path", "Could not sign the document: <filename>%1</filename>", additionalMessage.toString());
     case UserCancelled: // This is unlikely to actually happen in a way where we want to show a message

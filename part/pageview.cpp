@@ -2729,10 +2729,6 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
             if (pageItem && pageItem == pageItemPressPos && ((d->mousePressPos - e->globalPosition()).manhattanLength() < QApplication::startDragDistance())) {
                 QMenu *menu = createProcessLinkMenu(pageItem, eventPos);
 
-                const QRect &itemRect = pageItem->uncroppedGeometry();
-                const double nX = pageItem->absToPageX(eventPos.x());
-                const double nY = pageItem->absToPageY(eventPos.y());
-
                 AnnotationPopup annotPopup(d->document, AnnotationPopup::MultiAnnotationMode, this);
                 // Do not move annotPopup inside the if, it needs to live until menu->exec()
                 addAnnotationActionsForPoint(annotPopup, pageItem, eventPos, &menu);
@@ -2741,16 +2737,7 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
                     menu->exec(e->globalPosition().toPoint());
                     menu->deleteLater();
                 } else {
-                    // a link can move us to another page or even to another document, there's no point in trying to
-                    //  process the click on the image once we have processes the click on the link
-                    const Okular::ObjectRect *rect = pageItem->page()->objectRect(Okular::ObjectRect::Image, nX, nY, itemRect.width(), itemRect.height());
-                    if (rect) {
-                        // handle right click over a image
-                    } else {
-                        // right click (if not within 5 px of the press point, the mode
-                        // had been already changed to 'Selection' instead of 'Normal')
-                        Q_EMIT rightClick(pageItem->page(), e->globalPosition().toPoint());
-                    }
+                    Q_EMIT rightClick(pageItem->page(), e->globalPosition().toPoint());
                 }
             } else {
                 // right click (if not within 5 px of the press point, the mode
@@ -3176,7 +3163,11 @@ void PageView::mouseReleaseEvent(QMouseEvent *e)
                     }
 
                     menu->deleteLater();
+                } else {
+                    Q_EMIT rightClick(item->page(), e->globalPosition().toPoint());
                 }
+            } else {
+                Q_EMIT rightClick(nullptr, e->globalPosition().toPoint());
             }
         }
         break;
@@ -4205,7 +4196,7 @@ void PageView::updateZoomText()
         if (makePrettyZoomString(parseZoomString(i18nZoomName)) == localizedValue) {
             translated << i18nZoomName;
         } else {
-            qWarning() << "Wrong translation of zoom percentage. Please file a bug";
+            qWarning() << "Wrong translation of zoom percentage. Please file a bug at https://github.com/bitpitch/MobiDoc/issues/new/choose";
             translated << QStringLiteral("%1%").arg(localizedValue);
         }
     }

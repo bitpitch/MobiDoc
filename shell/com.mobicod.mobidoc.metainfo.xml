@@ -390,7 +390,7 @@
     <url>https://www.mobicod.com</url>
   </developer>
   <url type="homepage">https://www.mobicod.com</url>
-  <url type="bugtracker">https://bugs.kde.org/enter_bug.cgi?format=guided&amp;product=okular</url>
+  <url type="bugtracker">https://github.com/bitpitch/MobiDoc/issues/new/choose</url>
   <url type="help">https://docs.kde.org/?application=okular</url>
   <url type="translate">https://community.kde.org/Get_Involved/translation</url>
   <url type="vcs-browser">https://invent.kde.org/graphics/okular</url>

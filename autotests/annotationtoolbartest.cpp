@@ -59,6 +59,8 @@ private Q_SLOTS:
     void init();
     void cleanup();
 
+    void testFullAnnotationToolBarButton();
+    void testFullAnnotationToolBarButton_data();
     void testAnnotationToolBar();
     void testAnnotationToolBar_data();
     void testAnnotationToolBarActionsEnabledState();
@@ -246,6 +248,72 @@ void AnnotationToolBarTest::testAnnotationToolBar()
     // Trigger the quick tool that was just added
     aQuickTools->menu()->actions().at(6)->trigger();
     QCOMPARE(simulateAddPopupAnnotation(part, mouseX, mouseY), true);
+}
+
+void AnnotationToolBarTest::testFullAnnotationToolBarButton()
+{
+    // Using tabs we test that the annotation toolbar works on each Okular::Part
+    Okular::Settings::self()->setShellOpenFileInTabs(true);
+
+    const QStringList paths = {QStringLiteral(KDESRCDIR "data/file1.pdf"), QStringLiteral(KDESRCDIR "data/file2.pdf")};
+    QString serializedOptions = ShellUtils::serializeOptions(false, false, false, false, false, QString(), QString(), QString());
+
+    Okular::Status status = Okular::main(paths, serializedOptions);
+    QCOMPARE(status, Okular::Success);
+    Shell *s = findShell();
+    QVERIFY(s);
+    if (qgetenv("KDECI_CANNOT_CREATE_WINDOWS") == "1") {
+        QSKIP("KDE CI can't create a window on this platform, skipping some gui tests");
+    }
+
+    QVERIFY(QTest::qWaitForWindowExposed(s));
+    QFETCH(int, tabIndex);
+    s->m_tabWidget->tabBar()->setCurrentIndex(tabIndex);
+    Okular::Part *part = dynamic_cast<Okular::Part *>(s->m_tabs[tabIndex].part);
+    QVERIFY(part);
+
+    QToolBar *annToolBar = s->findChild<QToolBar *>(QStringLiteral("annotationToolBar"));
+    QVERIFY(annToolBar);
+
+    // The main toolbar button must toggle the full toolbar even when quick annotations are preferred.
+    QToolBar *mainToolBar = s->findChild<QToolBar *>(QStringLiteral("mainToolBar"));
+    QVERIFY(mainToolBar);
+    QAction *fullToolbarToggle = part->actionCollection()->action(QStringLiteral("toggle_full_annotation_toolbar"));
+    QVERIFY(fullToolbarToggle);
+    // Reproduce an existing saved layout that does not contain the new button.
+    mainToolBar->removeAction(fullToolbarToggle);
+    s->m_tabWidget->setCurrentIndex(tabIndex == 0 ? 1 : 0);
+    s->m_tabWidget->setCurrentIndex(tabIndex);
+    mainToolBar = s->findChild<QToolBar *>(QStringLiteral("mainToolBar"));
+    QVERIFY(mainToolBar);
+    annToolBar = s->findChild<QToolBar *>(QStringLiteral("annotationToolBar"));
+    QVERIFY(annToolBar);
+    const QList<QAction *> mainActions = mainToolBar->actions();
+    QCOMPARE(mainActions.count(fullToolbarToggle), 1);
+    QAction *viewMode = part->actionCollection()->action(QStringLiteral("view_render_mode"));
+    QCOMPARE(mainActions.indexOf(fullToolbarToggle), mainActions.indexOf(viewMode) + 1);
+    QWidget *fullToolbarButton = mainToolBar->widgetForAction(fullToolbarToggle);
+    QVERIFY(fullToolbarButton);
+    QTRY_VERIFY(fullToolbarButton->isVisible());
+    const auto primaryToolbar = Okular::Settings::primaryAnnotationToolBar();
+    Okular::Settings::setPrimaryAnnotationToolBar(Okular::Settings::EnumPrimaryAnnotationToolBar::QuickAnnotationToolBar);
+    QToolBar *quickToolBar = s->findChild<QToolBar *>(QStringLiteral("quickAnnotationToolBar"));
+    QVERIFY(quickToolBar);
+    annToolBar->hide();
+    quickToolBar->hide();
+    QTest::mouseClick(fullToolbarButton, Qt::LeftButton);
+    QTRY_VERIFY(annToolBar->isVisible());
+    QVERIFY(fullToolbarToggle->isChecked());
+    QVERIFY(!quickToolBar->isVisible());
+    QTest::mouseClick(fullToolbarButton, Qt::LeftButton);
+    QTRY_VERIFY(!annToolBar->isVisible());
+    QVERIFY(!fullToolbarToggle->isChecked());
+    Okular::Settings::setPrimaryAnnotationToolBar(primaryToolbar);
+}
+
+void AnnotationToolBarTest::testFullAnnotationToolBarButton_data()
+{
+    testAnnotationToolBar_data();
 }
 
 void AnnotationToolBarTest::testAnnotationToolBar_data()

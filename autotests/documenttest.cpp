@@ -34,6 +34,7 @@ private Q_SLOTS:
     void testEvaluateKeystrokeEventChange_data();
     void testEvaluateKeystrokeEventChange();
     void testDocumentBookmarkPersistence();
+    void testDocumentBookmarkRenamePersistence();
 };
 
 void DocumentTest::testDocumentBookmarkPersistence()
@@ -93,6 +94,63 @@ void DocumentTest::testDocumentBookmarkPersistence()
     QCOMPARE(reopened.documentSynopsis()->children().size(), originalCount + 2);
     QCOMPARE(reopened.documentSynopsis()->children().at(originalCount).title(), firstTitle);
     QCOMPARE(reopened.documentSynopsis()->children().constLast().title(), QStringLiteral("Second"));
+}
+
+void DocumentTest::testDocumentBookmarkRenamePersistence()
+{
+    Okular::SettingsCore::instance(QStringLiteral("documenttest"));
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString source = directory.filePath(QStringLiteral("source.pdf"));
+    QVERIFY(QFile::copy(QStringLiteral(KDESRCDIR "data/file1.pdf"), source));
+    const auto mime = QMimeDatabase().mimeTypeForName(QStringLiteral("application/pdf"));
+    Okular::Document document(nullptr);
+    QCOMPARE(document.openDocument(source, QUrl::fromLocalFile(source), mime), Okular::Document::OpenSuccess);
+    const QString originalTitle = QString::fromUtf8("Capitolo originale: caffè 日本語");
+    QVERIFY(document.addDocumentBookmark(0, originalTitle));
+    QString error;
+    const QString initial = directory.filePath(QStringLiteral("initial.pdf"));
+    QVERIFY2(document.saveChanges(initial, &error), qPrintable(error));
+    document.closeDocument();
+
+    // Reopen so the renamed entry is an existing PDF bookmark, rather than a new one.
+    QCOMPARE(document.openDocument(initial, QUrl::fromLocalFile(initial), mime), Okular::Document::OpenSuccess);
+    const auto bookmarks = document.documentSynopsis()->children();
+    const QString id = bookmarks.constLast().id();
+    const QString renamedTitle = QString::fromUtf8("Capitolo rinominato: 日本語");
+    QVERIFY(!document.renameDocumentBookmark(QStringLiteral("missing"), renamedTitle));
+    QVERIFY(!document.renameDocumentBookmark(id, QStringLiteral("  ")));
+    QVERIFY(!document.renameDocumentBookmark(id, originalTitle));
+    QVERIFY(document.renameDocumentBookmark(id, renamedTitle));
+    QCOMPARE(document.documentSynopsis()->children().constLast().title(), renamedTitle);
+    document.undo();
+    QCOMPARE(document.documentSynopsis()->children().constLast().title(), originalTitle);
+    document.redo();
+    QCOMPARE(document.documentSynopsis()->children().constLast().title(), renamedTitle);
+
+    const QString renamed = directory.filePath(QStringLiteral("renamed.pdf"));
+    QVERIFY2(document.saveChanges(renamed, &error), qPrintable(error));
+    QVERIFY(document.swapBackingFile(renamed, QUrl::fromLocalFile(renamed)));
+    auto verifySaved = [&](const QString &path, const QString &title) {
+        Okular::Document reopened(nullptr);
+        QCOMPARE(reopened.openDocument(path, QUrl::fromLocalFile(path), mime), Okular::Document::OpenSuccess);
+        QCOMPARE(reopened.documentSynopsis()->children().size(), bookmarks.size());
+        QCOMPARE(reopened.documentSynopsis()->children().constLast().title(), title);
+        QVERIFY(reopened.documentSynopsis()->children().constLast().viewPort());
+        QCOMPARE(reopened.documentSynopsis()->children().constLast().viewPort()->pageNumber, 0);
+    };
+    verifySaved(renamed, renamedTitle);
+
+    // Undo and redo must persist after saving replaced the backing file.
+    document.undo();
+    const QString undone = directory.filePath(QStringLiteral("undone.pdf"));
+    QVERIFY2(document.saveChanges(undone, &error), qPrintable(error));
+    verifySaved(undone, originalTitle);
+    QVERIFY(document.swapBackingFile(undone, QUrl::fromLocalFile(undone)));
+    document.redo();
+    const QString redone = directory.filePath(QStringLiteral("redone.pdf"));
+    QVERIFY2(document.saveChanges(redone, &error), qPrintable(error));
+    verifySaved(redone, renamedTitle);
 }
 
 // Test that we don't crash if the document is closed while a RotationJob

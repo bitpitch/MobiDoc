@@ -15,6 +15,7 @@
 #include <QMenu>
 #include <QPainter>
 #include <QPen>
+#include <QSignalBlocker>
 
 // kde includes
 #include <KActionCollection>
@@ -63,6 +64,7 @@ public:
         , aHideToolBar(nullptr)
         , aShowToolBar(nullptr)
         , aToolBarVisibility(nullptr)
+        , aFullToolBarVisibility(nullptr)
         , aCustomStamp(nullptr)
         , aCustomWidth(nullptr)
         , aCustomOpacity(nullptr)
@@ -130,6 +132,7 @@ public:
     QAction *aHideToolBar;
     QAction *aShowToolBar;
     KToggleAction *aToolBarVisibility;
+    KToggleAction *aFullToolBarVisibility;
 
     QAction *aCustomStamp;
     QAction *aCustomWidth;
@@ -549,6 +552,10 @@ AnnotationActionHandler::AnnotationActionHandler(PageViewAnnotator *parent, KAct
 
     // toolbar visibility actions
     d->aToolBarVisibility = new KToggleAction(QIcon::fromTheme(QStringLiteral("draw-freehand")), i18n("&Annotations"), this);
+    d->aToolBarVisibility->setToolTip(i18nc("@info:tooltip", "Show or hide the annotation toolbar"));
+    d->aFullToolBarVisibility = new KToggleAction(QIcon::fromTheme(QStringLiteral("draw-freehand")), i18n("Annotation Toolbar"), this);
+    d->aFullToolBarVisibility->setToolTip(i18nc("@info:tooltip", "Show or hide the full annotation toolbar"));
+    d->aFullToolBarVisibility->setPriority(QAction::LowPriority);
     d->aHideToolBar = new QAction(QIcon::fromTheme(QStringLiteral("dialog-close")), i18nc("@action:intoolbar Hide the toolbar", "Hide"), this);
     d->aShowToolBar = new QAction(QIcon::fromTheme(QStringLiteral("draw-freehand")), i18nc("@action:intoolbar Show the builtin annotation toolbar", "Show more annotation tools"), this);
 
@@ -720,6 +727,7 @@ AnnotationActionHandler::AnnotationActionHandler(PageViewAnnotator *parent, KAct
     });
 
     ac->addAction(QStringLiteral("mouse_toggle_annotate"), d->aToolBarVisibility);
+    ac->addAction(QStringLiteral("toggle_full_annotation_toolbar"), d->aFullToolBarVisibility);
     ac->addAction(QStringLiteral("hide_annotation_toolbar"), d->aHideToolBar);
     ac->addAction(QStringLiteral("quick_annotation_action_bar"), d->aQuickToolsBar);
     ac->addAction(QStringLiteral("annotation_highlighter"), aHighlighter);
@@ -783,7 +791,34 @@ void AnnotationActionHandler::setupAnnotationToolBarVisibilityAction()
     d->assertToolBarExists(mw, QStringLiteral("annotationToolBar"));
     d->assertToolBarExists(mw, QStringLiteral("quickAnnotationToolBar"));
 
+    // Saved toolbar layouts can omit actions introduced by a newer application version.
+    // Keep the full annotation toolbar button available beside the view controls.
+    KToolBar *mainToolBar = mw->toolBar(QStringLiteral("mainToolBar"));
+    for (QAction *action : mainToolBar->actions()) {
+        if (action != d->aFullToolBarVisibility && action->objectName() == QLatin1String("toggle_full_annotation_toolbar")) {
+            mainToolBar->removeAction(action);
+        }
+    }
+    if (!mainToolBar->actions().contains(d->aFullToolBarVisibility)) {
+        const QList<QAction *> actions = mainToolBar->actions();
+        QAction *before = nullptr;
+        for (int index = 0; index + 1 < actions.size(); ++index) {
+            if (actions[index]->objectName() == QLatin1String("view_render_mode")) {
+                before = actions[index + 1];
+                break;
+            }
+        }
+        mainToolBar->insertAction(before, d->aFullToolBarVisibility);
+    }
+
     KToolBar *annotationToolBar = mw->toolBar(QStringLiteral("annotationToolBar"));
+    // This button always controls the full toolbar, regardless of the preferred annotation toolbar.
+    {
+        const QSignalBlocker blocker(d->aFullToolBarVisibility);
+        d->aFullToolBarVisibility->setChecked(annotationToolBar->isVisible());
+    }
+    connect(annotationToolBar, &QToolBar::visibilityChanged, d->aFullToolBarVisibility, &QAction::setChecked, Qt::UniqueConnection);
+    connect(d->aFullToolBarVisibility, &QAction::toggled, annotationToolBar, &KToolBar::setVisible, Qt::UniqueConnection);
     connect(annotationToolBar, &QToolBar::visibilityChanged, this, &AnnotationActionHandler::slotAnnotationToolBarVisibilityChanged, Qt::UniqueConnection);
     // show action
     connect(d->aShowToolBar, &QAction::triggered, annotationToolBar, &KToolBar::show, Qt::UniqueConnection);
