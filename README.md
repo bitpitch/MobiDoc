@@ -1,4 +1,4 @@
-# MobiDoc – PDF Document Viewer
+# MobiDoc – PDF Reader
 
 MobiDoc is an open-source document viewer based on KDE Okular.
 
