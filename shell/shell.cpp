@@ -19,6 +19,7 @@
 #include "shell.h"
 
 // qt/kde includes
+#include <KAboutData>
 #include <KActionCollection>
 #include <KConfigGroup>
 #include <KIO/Global>
@@ -42,10 +43,12 @@
 #include <QDBusConnection>
 #endif // HAVE_DBUS
 #include <QDockWidget>
+#include <QDesktopServices>
 #include <QDragMoveEvent>
 #include <QFileDialog>
 #include <QJsonArray>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QMimeData>
 #include <QMenu>
 #include <QObject>
@@ -190,6 +193,8 @@ Shell::Shell(const QString &serializedOptions)
     setComponentName(QStringLiteral("okular"), QString());
     // set the shell's ui resource file
     setXMLFile(QStringLiteral("shell.rc"));
+    // Define MobiDoc's Help menu explicitly instead of generating KDE's menu.
+    setHelpMenuEnabled(false);
     m_fileformatsscanned = false;
     m_showMenuBarAction = nullptr;
     // this routine will find and load our Part.  it finds the Part by
@@ -572,6 +577,22 @@ void Shell::setupActions()
     m_closeAction = KStandardAction::close(this, SLOT(closeUrl()), actionCollection());
     m_closeAction->setEnabled(false);
     KStandardAction::quit(this, SLOT(close()), actionCollection());
+
+    QAction *reportBug = actionCollection()->addAction(QStringLiteral("mobidoc_report_bug"));
+    reportBug->setText(QStringLiteral("Report a Bug..."));
+    reportBug->setIcon(QIcon::fromTheme(QStringLiteral("tools-report-bug")));
+    connect(reportBug, &QAction::triggered, this, []() {
+        QDesktopServices::openUrl(QUrl(KAboutData::applicationData().bugAddress()));
+    });
+
+    QAction *about = actionCollection()->addAction(QStringLiteral("mobidoc_about"));
+    about->setText(QStringLiteral("About MobiDoc"));
+    about->setMenuRole(QAction::AboutRole);
+    connect(about, &QAction::triggered, this, [this]() {
+        QMessageBox::about(this,
+                           QStringLiteral("About MobiDoc"),
+                           QStringLiteral("MobiDoc\nVersion %1\n\nPDF viewer and editor.").arg(QCoreApplication::applicationVersion()));
+    });
 
     setStandardToolBarMenuEnabled(true);
 

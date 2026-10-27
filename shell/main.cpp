@@ -23,6 +23,7 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QFileOpenEvent>
+#include <QLocale>
 #include <QObject>
 #include <QStringList>
 #include <QTextStream>
@@ -73,6 +74,12 @@ protected:
 
 int main(int argc, char **argv)
 {
+    // MobiDoc's interface is English-only, regardless of system or saved language.
+    qputenv("LANGUAGE", "en_US");
+    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
+    // Native file dialogs use the OS language instead of the application's.
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+
     /**
      * trigger initialisation of proper icon theme
      */
@@ -98,6 +105,7 @@ int main(int argc, char **argv)
 #endif
 
     QApplication app(argc, argv);
+    KLocalizedString::setLanguages({QStringLiteral("en_US")});
 
 #ifdef Q_OS_MACOS
     installMobiDocNativeMenuFilter();

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui version="11" name="okular_shell" >
+<gui version="12" name="okular_shell" >
  <MenuBar>
   <Menu name="file" >
    <DefineGroup append="open_merge" name="file_open" />
@@ -17,6 +17,10 @@
   </Menu>
   <Merge/>
   <Menu name="help">
+   <text>&amp;Help</text>
+   <Action name="mobidoc_report_bug" />
+   <Separator />
+   <Action name="mobidoc_about" />
    <DefineGroup append="about_merge" name="about_merge" />
   </Menu>
  </MenuBar>
