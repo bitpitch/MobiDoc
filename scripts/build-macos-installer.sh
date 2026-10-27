@@ -100,8 +100,9 @@ fi
 version_major="$(sed -nE 's/^set \(RELEASE_SERVICE_VERSION_MAJOR "([0-9]+)"\)$/\1/p' "$project_root/CMakeLists.txt" | head -n 1)"
 version_minor="$(sed -nE 's/^set \(RELEASE_SERVICE_VERSION_MINOR "([0-9]+)"\)$/\1/p' "$project_root/CMakeLists.txt" | head -n 1)"
 version_micro="$(sed -nE 's/^set \(RELEASE_SERVICE_VERSION_MICRO "([0-9]+)"\)$/\1/p' "$project_root/CMakeLists.txt" | head -n 1)"
-version="${version_major}.${version_minor}.${version_micro}"
-if [[ -z "$version_major" || -z "$version_minor" || -z "$version_micro" ]]; then
+version_tweak="$(sed -nE 's/^set \(RELEASE_SERVICE_VERSION_TWEAK "([0-9]+)"\)$/\1/p' "$project_root/CMakeLists.txt" | head -n 1)"
+version="${version_major}.${version_minor}.${version_micro}.${version_tweak}"
+if [[ -z "$version_major" || -z "$version_minor" || -z "$version_micro" || -z "$version_tweak" ]]; then
     echo "Unable to read the MobiDoc release version from CMakeLists.txt." >&2
     exit 1
 fi
